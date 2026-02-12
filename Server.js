@@ -1317,10 +1317,11 @@ app.get("/hello", (req, res) => {
 // --- Start Server
 
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`🚀 Server running on port ${port}`);
 });
 
 
 
 export default app;
+
