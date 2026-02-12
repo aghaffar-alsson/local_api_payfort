@@ -1316,12 +1316,14 @@ app.get("/hello", (req, res) => {
 });
 // --- Start Server
 
+const PORT = process.env.VITE_PORT || 3000;
 
-app.listen(port, () => {
-  console.log(`🚀 Server running on port ${port}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
 
 
 
-export default app;
+//export default app;
+
 
