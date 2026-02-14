@@ -219,14 +219,24 @@ app.post("/sp_GetLoginDetByMob&Email", async (req, res) => {
 //});
 // ---------- NODEMAILER ----------
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT,
-  secure: true,
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
   auth: {
     user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
+    pass: process.env.SMTP_PASS
+  }
 });
+
+//const transporter = nodemailer.createTransport({
+//host: process.env.SMTP_HOST,
+//port: process.env.SMTP_PORT,
+//secure: true,
+//auth: {
+//user: process.env.SMTP_USER,
+//pass: process.env.SMTP_PASS,
+//},
+//});
 
 //create random temp password
 function generateTempPassword(length = 8) {
@@ -1335,6 +1345,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
