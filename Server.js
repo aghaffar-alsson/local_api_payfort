@@ -14,6 +14,7 @@ import { createRequire } from 'module';
 import bcrypt from "bcrypt";
 import fs from "fs-extra";
 import PDFDocument from "pdfkit";
+import { getTransporter } from "./mailer.js"; // the above transporter file
 //******************OPEN CONNECTION & ESTABLISH SERVER************************/
 const require = createRequire(import.meta.url);
 const nodemailer = require('nodemailer');
@@ -261,20 +262,18 @@ function generateTempPassword(length = 8) {
 
 //CREATE NEW LOGIN
 app.post('/signup', async (req, res) => {
-  const { yr,  famid, famnm, emll, mobb, pswd } = req.body;
-  console.log(req.body);
+  const { yr, famid, famnm, emll, mobb, pswd } = req.body;
+
   if (!yr || !famid || !famnm || !emll || !mobb || !pswd) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
   try {
     const tempPswd = generateTempPassword(10);
-    console.log(tempPswd)
-    //const hashedPswd = await bcrypt.hash(tempPswd, 10);    
     const hashedPswd = tempPswd;    
+
     const pool = await sql.connect(sqlConfig);
-    const result = await pool
-      .request()
+    await pool.request()
       .input('yr', sql.Char(4), yr)
       .input('famid', sql.Int, famid)
       .input('famnm', sql.NVarChar(255), famnm)
@@ -283,36 +282,29 @@ app.post('/signup', async (req, res) => {
       .input('pswd', sql.NVarChar(255), hashedPswd)
       .execute('signup');
 
-      //SEND TEMP PASSWORD TO THE PARENT EMAIL
-      const mailOptions = {
-        from: process.env.FromEmailAddress,
-        to: emll,
-        subject: "Your Temporary Password For Parents' Fees Portal",
-        html: `
-          <font face="Calibri" size="3" color = "blue">
-          <h3>Dear Parent: ${famnm},</h3>
-          <br/>
-          <h3>Welcome to our portal,</h3>
-          <br/>
-          <p>Your login account has been created for the <strong>Parents' Fees Portal</strong>.</p>
-          <p>Here is your temporary password:</p><u><h2 style="color:#1a73e8;">${tempPswd}</h2></u>
-          <p>You can login using the email adress:</p><u><h2 style="color:#1a73e8;">${emll}</h2></u>
-          <p>and this mobile number:</p><u><h2 style="color:#1a73e8;">${mobb}</h2></u>
-          <br/>
-          <p>Please write this password when you login for the first time only.</p>
-          <p>You should change it by your own password immediately.</p>
-          <br/>
-          <p>Finance Department - Fees Section</p>
-          <p>El Alsson School- </p>
-          <p>Best regards,</p>
-        `,
-      };
-      await transporter.sendMail(mailOptions);
-      res.json({ message: 'Signup successful!' , tempPswd: tempPswd} , );
-      
+    // SEND TEMP PASSWORD
+    const transporter = await getTransporter();
+
+    const mailOptions = {
+      from: `"El Alsson School" <${process.env.SMTP_USER}>`,
+      to: emll,
+      subject: "Your Temporary Password For Parents' Fees Portal",
+      html: `
+        <h3>Dear Parent: ${famnm}</h3>
+        <p>Your login account has been created.</p>
+        <p><strong>Email:</strong> ${emll}</p>
+        <p><strong>Mobile:</strong> ${mobb}</p>
+        <p><strong>Temporary Password:</strong> ${tempPswd}</p>
+        <p>Please change it after your first login.</p>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.json({ message: 'Signup successful!', tempPswd });
   } catch (err) {
-    console.error('Database Error:', err);
-    res.status(500).json({ message: 'Database Error', error: err.message });
+    console.error('Signup error:', err);
+    res.status(500).json({ message: 'Signup failed', error: err.message });
   }
 });
 
@@ -1356,6 +1348,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
