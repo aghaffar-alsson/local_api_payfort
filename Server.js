@@ -212,7 +212,7 @@ app.post("/sp_GetLoginDetByMob&Email", async (req, res) => {
 
 // --- OAuth2 Setup ---
 console.log(process.env.CLIENT_ID)
-console.log(process.env.CLIENT_SECRET)
+console.log(process.env.SECRET_TOKEN)
 console.log(process.env.REFRESH_TOKEN)
 console.log(process.env.SMTP_USER)
 
@@ -220,7 +220,7 @@ console.log(process.env.SMTP_USER)
 
 const oAuth2Client = new google.auth.OAuth2(
   process.env.CLIENT_ID,
-  process.env.CLIENT_SECRET,
+  process.env.SECRET_TOKEN,
   "https://developers.google.com/oauthplayground"
 );
 
@@ -234,7 +234,7 @@ oAuth2Client.setCredentials({ refresh_token: process.env.REFRESH_TOKEN });
         type: 'OAuth2',
         user: process.env.SMTP_USER,
         clientId: process.env.CLIENT_ID,
-        clientSecret: process.env.CLIENT_SECRET,
+        clientSecret: process.env.SECRET_TOKEN,
         refreshToken: process.env.REFRESH_TOKEN,
         accessToken: accessToken.token
       }
@@ -1348,6 +1348,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
