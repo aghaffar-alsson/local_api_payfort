@@ -221,12 +221,25 @@ app.post("/sp_GetLoginDetByMob&Email", async (req, res) => {
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
-  secure: false,
+  secure: false, // must be false for 587
+  requireTLS: true,
   auth: {
     user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
+    pass: process.env.SMTP_PASS,
+  },
+  tls: {
+    rejectUnauthorized: false,
+  },
+  connectionTimeout: 10000, // 10 seconds
+});
+transporter.verify(function (error, success) {
+  if (error) {
+    console.error("SMTP Verify Error:", error);
+  } else {
+    console.log("SMTP Server is ready");
   }
 });
+
 
 //const transporter = nodemailer.createTransport({
 //host: process.env.SMTP_HOST,
@@ -1345,6 +1358,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
