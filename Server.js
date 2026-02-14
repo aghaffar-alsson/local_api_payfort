@@ -226,20 +226,28 @@ const oAuth2Client = new google.auth.OAuth2(
 
 oAuth2Client.setCredentials({ refresh_token: process.env.REFRESH_TOKEN });
 
-   const accessToken = await oAuth2Client.getAccessToken();
+async function createTransporter() {
+  const accessToken = await oAuth2Client.getAccessToken();
 
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        type: 'OAuth2',
-        user: process.env.SMTP_USER,
-        clientId: process.env.CLIENT_ID,
-        clientSecret: process.env.SECRET_TOKEN,
-        refreshToken: process.env.REFRESH_TOKEN,
-        accessToken: accessToken.token
-      }
-    });
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      type: "OAuth2",
+      user: process.env.SMTP_USER,
+      clientId: process.env.CLIENT_ID,
+      clientSecret: process.env.SECRET_TOKEN,
+      refreshToken: process.env.REFRESH_TOKEN,
+      accessToken: accessToken.token,
+    },
+    pool: true,
+    // Force HTTPS transport (this is optional but avoids SMTP entirely)
+    tls: {
+      rejectUnauthorized: false
+    }
+  });
+}
 
+const transporter = await createTransporter();
 
 //create random temp password
 function generateTempPassword(length = 8) {
@@ -1348,6 +1356,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
