@@ -14,12 +14,11 @@ import { createRequire } from 'module';
 import bcrypt from "bcrypt";
 import fs from "fs-extra";
 import PDFDocument from "pdfkit";
-import { getTransporter } from "./mailer.js"; // the above transporter file
+//import { getTransporter } from "./mailer.js"; // the above transporter file
 //******************OPEN CONNECTION & ESTABLISH SERVER************************/
 const require = createRequire(import.meta.url);
-const nodemailer = require('nodemailer');
+//const nodemailer = require('nodemailer');
 const { google } = require('googleapis');
-
 //dotenv.config({ path: './config.env' });
 // dotenv.config({ path: './.env' });
 dotenv.config();
@@ -75,6 +74,65 @@ const sqlConfig = {
   requestTimeout: 25000,
 };
 console.log(sqlConfig)
+
+// --- OAuth2 Setup ---
+//console.log(process.env.CLIENT_ID)
+//console.log(process.env.SECRET_TOKEN)
+//console.log(process.env.REFRESH_TOKEN)
+//console.log(process.env.SMTP_USER)
+const oAuth2Client = new google.auth.OAuth2(
+  process.env.CLIENT_ID,
+  process.env.SECRET_TOKEN,
+  "https://developers.google.com/oauthplayground"
+);
+
+oAuth2Client.setCredentials({ refresh_token: process.env.REFRESH_TOKEN });
+
+const gmail = google.gmail({
+  version: "v1",
+  auth: oAuth2Client,
+});
+
+async function sendEmail({ to, subject, html, attachments = [] }) {
+  const boundary = "boundary_xyz";
+
+  let messageParts = [
+    `From: "El Alsson School" <${process.env.SMTP_USER}>`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    `MIME-Version: 1.0`,
+    `Content-Type: multipart/mixed; boundary=${boundary}`,
+    "",
+    `--${boundary}`,
+    `Content-Type: text/html; charset="UTF-8"`,
+    "",
+    html,
+  ];
+
+  for (const file of attachments) {
+    messageParts.push(
+      `--${boundary}`,
+      `Content-Type: ${file.mimeType}; name="${file.filename}"`,
+      `Content-Disposition: attachment; filename="${file.filename}"`,
+      `Content-Transfer-Encoding: base64`,
+      "",
+      file.content.toString("base64")
+    );
+  }
+
+  messageParts.push(`--${boundary}--`);
+
+  const raw = Buffer.from(messageParts.join("\n"))
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  await gmail.users.messages.send({
+    userId: "me",
+    requestBody: { raw },
+  });
+}
 
 // SQL Config
 // const sqlConfig = {
@@ -211,44 +269,29 @@ app.post("/sp_GetLoginDetByMob&Email", async (req, res) => {
   }
 });
 
-// --- OAuth2 Setup ---
-console.log(process.env.CLIENT_ID)
-console.log(process.env.SECRET_TOKEN)
-console.log(process.env.REFRESH_TOKEN)
-console.log(process.env.SMTP_USER)
 
+// async function createTransporter() {
+//   const accessToken = await oAuth2Client.getAccessToken();
 
+//   return nodemailer.createTransport({
+//     service: "gmail",
+//     auth: {
+//       type: "OAuth2",
+//       user: process.env.SMTP_USER,
+//       clientId: process.env.CLIENT_ID,
+//       clientSecret: process.env.SECRET_TOKEN,
+//       refreshToken: process.env.REFRESH_TOKEN,
+//       accessToken: accessToken.token,
+//     },
+//     pool: true,
+//     // Force HTTPS transport (this is optional but avoids SMTP entirely)
+//     tls: {
+//       rejectUnauthorized: false
+//     }
+//   });
+// }
 
-const oAuth2Client = new google.auth.OAuth2(
-  process.env.CLIENT_ID,
-  process.env.SECRET_TOKEN,
-  "https://developers.google.com/oauthplayground"
-);
-
-oAuth2Client.setCredentials({ refresh_token: process.env.REFRESH_TOKEN });
-
-async function createTransporter() {
-  const accessToken = await oAuth2Client.getAccessToken();
-
-  return nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      type: "OAuth2",
-      user: process.env.SMTP_USER,
-      clientId: process.env.CLIENT_ID,
-      clientSecret: process.env.SECRET_TOKEN,
-      refreshToken: process.env.REFRESH_TOKEN,
-      accessToken: accessToken.token,
-    },
-    pool: true,
-    // Force HTTPS transport (this is optional but avoids SMTP entirely)
-    tls: {
-      rejectUnauthorized: false
-    }
-  });
-}
-
-const transporter = await createTransporter();
+//const transporter = await createTransporter();
 
 //create random temp password
 function generateTempPassword(length = 8) {
@@ -299,7 +342,7 @@ app.post('/signup', async (req, res) => {
       `
     };
 
-    await transporter.sendMail(mailOptions);
+    //await transporter.sendMail(mailOptions);
 
     res.json({ message: 'Signup successful!', tempPswd });
   } catch (err) {
@@ -356,7 +399,17 @@ app.post('/modifylogin', async (req, res) => {
           <p>Best regards,</p>
         `,
       };
-      await transporter.sendMail(mailOptions);
+      //await transporter.sendMail(mailOptions);
+      await sendEmail({
+        to: emll,
+        subject: "Your Reset Password For Parents' Fees Portal",
+        html: `
+          <h3>Dear Parent: ${famnm}</h3>
+          <p>Your password has been reset.</p>
+          <h2>${tempPswd}</h2>
+        `
+      });
+    
       res.json({ message: 'Reset Password is successful!' , tempPswd: tempPswd} , );
       
   } catch (err) {
@@ -969,7 +1022,19 @@ app.post("/send-receipt-email", async (req, res) => {
       ]
     };
 
-    await transporter.sendMail(mailOptions);
+    //await transporter.sendMail(mailOptions);
+    await sendEmail({
+      to: process.env.SMTP_USER,
+      subject: `Payment Receipt ${receiptData.merchant_reference}`,
+      html: emailHtml,
+      attachments: [
+        {
+          filename: `receipt-${receiptData.merchant_reference}.pdf`,
+          mimeType: "application/pdf",
+          content: pdfBuffer
+        }
+      ]
+    });
 
     res.json({ success: true });
   } catch (err) {
@@ -1348,6 +1413,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
