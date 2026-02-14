@@ -304,18 +304,26 @@ function generateTempPassword(length = 8) {
 }
 
 //CREATE NEW LOGIN
-app.post('/signup', async (req, res) => {
-  const { yr, famid, famnm, emll, mobb, pswd } = req.body;
+import bcrypt from "bcrypt";
 
-  if (!yr || !famid || !famnm || !emll || !mobb || !pswd) {
+// CREATE NEW LOGIN
+app.post('/signup', async (req, res) => {
+  const { yr, famid, famnm, emll, mobb } = req.body;
+
+  if (!yr || !famid || !famnm || !emll || !mobb) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
   try {
+    // 1️⃣ Generate temporary password
     const tempPswd = generateTempPassword(10);
-    const hashedPswd = tempPswd;    
 
+    // 2️⃣ Hash password (DO NOT store plain text)
+    const hashedPswd = await bcrypt.hash(tempPswd, 10);
+
+    // 3️⃣ Save to database
     const pool = await sql.connect(sqlConfig);
+
     await pool.request()
       .input('yr', sql.Char(4), yr)
       .input('famid', sql.Int, famid)
@@ -325,31 +333,89 @@ app.post('/signup', async (req, res) => {
       .input('pswd', sql.NVarChar(255), hashedPswd)
       .execute('signup');
 
-    // SEND TEMP PASSWORD
-    const transporter = await getTransporter();
-
-    const mailOptions = {
-      from: `"El Alsson School" <${process.env.SMTP_USER}>`,
+    // 4️⃣ Send email using Gmail API (NOT SMTP)
+    await sendEmail({
       to: emll,
       subject: "Your Temporary Password For Parents' Fees Portal",
       html: `
-        <h3>Dear Parent: ${famnm}</h3>
-        <p>Your login account has been created.</p>
-        <p><strong>Email:</strong> ${emll}</p>
-        <p><strong>Mobile:</strong> ${mobb}</p>
-        <p><strong>Temporary Password:</strong> ${tempPswd}</p>
-        <p>Please change it after your first login.</p>
-      `
-    };
+        <font face="Calibri" size="3" color = "blue">
+        <h3>Dear Parent: ${famnm},</h3>
+        <br/>
+        <h3>Welcome to our portal,</h3>
+        <br/>
+        <p>Your login account has been created for the <strong>Parents' Fees Portal</strong>.</p>
+        <p>Here is your temporary password:</p><u><h2 style="color:#1a73e8;">${tempPswd}</h2></u>
+        <p>You can login using the email adress:</p><u><h2 style="color:#1a73e8;">${emll}</h2></u>
+        <p>and this mobile number:</p><u><h2 style="color:#1a73e8;">${mobb}</h2></u>
+        <br/>
+        <p>Please write this password when you login for the first time only.</p>
+        <p>You should change it by your own password immediately.</p>
+        <br/>
+        <p>Finance Department - Fees Section</p>
+        <p>El Alsson School- </p>
+        <p>Best regards,</p>
+      `,
+    });
 
-    //await transporter.sendMail(mailOptions);
+    // 5️⃣ Do NOT return password in API response (security best practice)
+    res.json({ message: 'Signup successful!' });
 
-    res.json({ message: 'Signup successful!', tempPswd });
   } catch (err) {
     console.error('Signup error:', err);
-    res.status(500).json({ message: 'Signup failed', error: err.message });
+    res.status(500).json({ 
+      message: 'Signup failed', 
+      error: err.message 
+    });
   }
 });
+
+// app.post('/signup', async (req, res) => {
+//   const { yr, famid, famnm, emll, mobb, pswd } = req.body;
+
+//   if (!yr || !famid || !famnm || !emll || !mobb || !pswd) {
+//     return res.status(400).json({ message: 'Missing required fields' });
+//   }
+
+//   try {
+//     const tempPswd = generateTempPassword(10);
+//     const hashedPswd = tempPswd;    
+
+//     const pool = await sql.connect(sqlConfig);
+//     await pool.request()
+//       .input('yr', sql.Char(4), yr)
+//       .input('famid', sql.Int, famid)
+//       .input('famnm', sql.NVarChar(255), famnm)
+//       .input('emll', sql.NVarChar(255), emll)
+//       .input('mobb', sql.NVarChar(11), mobb)
+//       .input('pswd', sql.NVarChar(255), hashedPswd)
+//       .execute('signup');
+
+//     // SEND TEMP PASSWORD
+//     const transporter = await getTransporter();
+
+//     const mailOptions = {
+//       from: `"El Alsson School" <${process.env.SMTP_USER}>`,
+//       to: emll,
+//       subject: "Your Temporary Password For Parents' Fees Portal",
+//       html: `
+//         <h3>Dear Parent: ${famnm}</h3>
+//         <p>Your login account has been created.</p>
+//         <p><strong>Email:</strong> ${emll}</p>
+//         <p><strong>Mobile:</strong> ${mobb}</p>
+//         <p><strong>Temporary Password:</strong> ${tempPswd}</p>
+//         <p>Please change it after your first login.</p>
+//       `
+//     };
+
+//     //await transporter.sendMail(mailOptions);
+
+//     res.json({ message: 'Signup successful!', tempPswd });
+//   } catch (err) {
+//     console.error('Signup error:', err);
+//     res.status(500).json({ message: 'Signup failed', error: err.message });
+//   }
+// });
+
 
 //MODIFY AN EXISTING LOGIN BY RESETTING THE PASSWORD TO A NEW TEMPORARY ONE & SEND IT TO THE PARENT EMAIL ADDRESS
 app.post('/modifylogin', async (req, res) => {
@@ -403,11 +469,29 @@ app.post('/modifylogin', async (req, res) => {
       await sendEmail({
         to: emll,
         subject: "Your Reset Password For Parents' Fees Portal",
+        //html: `
+        //  <h3>Dear Parent: ${famnm}</h3>
+        //  <p>Your password has been reset.</p>
+        //  <h2>${tempPswd}</h2>
+        //`
         html: `
-          <h3>Dear Parent: ${famnm}</h3>
-          <p>Your password has been reset.</p>
-          <h2>${tempPswd}</h2>
-        `
+          <font face="Calibri" size="3" color = "blue">
+          <h3>Dear Parent: ${famnm},</h3>
+          <br/>
+          <h3>Welcome again to our portal,</h3>
+          <br/>
+          <p>Your login account for the <strong>Parents' Fees Portal</strong> has been modified.</p>
+          <p>Here is your new temporary password:</p><u><h2 style="color:#1a73e8;">${tempPswd}</h2></u>
+          <p>You can login using the email adress:</p><u><h2 style="color:#1a73e8;">${emll}</h2></u>
+          <p>and this mobile number:</p><u><h2 style="color:#1a73e8;">${mobb}</h2></u>
+          <br/>
+          <p>Please write this password when you login for the first time only.</p>
+          <p>You should change it by your own password immediately.</p>
+          <br/>
+          <p>Finance Department - Fees Section</p>
+          <p>El Alsson School- </p>
+          <p>Best regards,</p>
+        `        
       });
     
       res.json({ message: 'Reset Password is successful!' , tempPswd: tempPswd} , );
@@ -1413,6 +1497,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
