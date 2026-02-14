@@ -211,6 +211,13 @@ app.post("/sp_GetLoginDetByMob&Email", async (req, res) => {
 });
 
 // --- OAuth2 Setup ---
+console.log(process.env.CLIENT_ID)
+console.log(process.env.CLIENT_SECRET)
+console.log(process.env.REFRESH_TOKEN)
+console.log(process.env.SMTP_USER)
+
+
+
 const oAuth2Client = new google.auth.OAuth2(
   process.env.CLIENT_ID,
   process.env.CLIENT_SECRET,
@@ -1341,6 +1348,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
