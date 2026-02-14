@@ -218,27 +218,34 @@ app.post("/sp_GetLoginDetByMob&Email", async (req, res) => {
 //},
 //});
 // ---------- NODEMAILER ----------
+const nodemailer = require('nodemailer');
+
+// Create transporter
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 25,
-  secure: false, // must be false for 587
-  requireTLS: true,
+  service: 'gmail',
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false,
-  },
-  connectionTimeout: 10000, // 10 seconds
-});
-transporter.verify(function (error, success) {
-  if (error) {
-    console.error("SMTP Verify Error:", error);
-  } else {
-    console.log("SMTP Server is ready");
+    user: process.env.SMTP_USER, // your Gmail email
+    pass: process.env.SMTP_PASS // your Gmail app password
   }
 });
+
+// Email options
+const mailOptions = {
+  from: process.env.SMTP_USER,
+  to: 'aghaffar@alsson.com',
+  subject: 'Test Email from Render',
+  text: 'Hello! This email is sent from Render using Node.js.'
+};
+
+// Send email
+transporter.sendMail(mailOptions, (error, info) => {
+  if (error) {
+    console.error('Error sending email:', error);
+  } else {
+    console.log('Email sent:', info.response);
+  }
+});
+
 
 
 //const transporter = nodemailer.createTransport({
@@ -1358,6 +1365,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
