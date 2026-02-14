@@ -17,6 +17,7 @@ import PDFDocument from "pdfkit";
 //******************OPEN CONNECTION & ESTABLISH SERVER************************/
 const require = createRequire(import.meta.url);
 const nodemailer = require('nodemailer');
+const { google } = require('googleapis');
 
 //dotenv.config({ path: './config.env' });
 // dotenv.config({ path: './.env' });
@@ -209,54 +210,29 @@ app.post("/sp_GetLoginDetByMob&Email", async (req, res) => {
   }
 });
 
-//Configure NODEMAILER
-//const transporter = nodemailer.createTransport({
-//service: "gmail",
-//auth: {
-//user: 'fees@alsson.com',
-//pass: 'gwwowluzlabnfyqw',
-//},
-//});
-// ---------- NODEMAILER ----------
-//const nodemailer = require('nodemailer');
+// --- OAuth2 Setup ---
+const oAuth2Client = new google.auth.OAuth2(
+  process.env.CLIENT_ID,
+  process.env.CLIENT_SECRET,
+  "https://developers.google.com/oauthplayground"
+);
 
-// Create transporter
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.SMTP_USER, // your Gmail email
-    pass: process.env.SMTP_PASS // your Gmail app password
-  }
-});
+oAuth2Client.setCredentials({ refresh_token: process.env.REFRESH_TOKEN });
 
-// Email options
-const mailOptions = {
-  from: process.env.SMTP_USER,
-  to: 'aghaffar@alsson.com',
-  subject: 'Test Email from Render',
-  text: 'Hello! This email is sent from Render using Node.js.'
-};
+   const accessToken = await oAuth2Client.getAccessToken();
 
-// Send email
-transporter.sendMail(mailOptions, (error, info) => {
-  if (error) {
-    console.error('Error sending email:', error);
-  } else {
-    console.log('Email sent:', info.response);
-  }
-});
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        type: 'OAuth2',
+        user: process.env.SMTP_USER,
+        clientId: process.env.CLIENT_ID,
+        clientSecret: process.env.CLIENT_SECRET,
+        refreshToken: process.env.REFRESH_TOKEN,
+        accessToken: accessToken.token
+      }
+    });
 
-
-
-//const transporter = nodemailer.createTransport({
-//host: process.env.SMTP_HOST,
-//port: process.env.SMTP_PORT,
-//secure: true,
-//auth: {
-//user: process.env.SMTP_USER,
-//pass: process.env.SMTP_PASS,
-//},
-//});
 
 //create random temp password
 function generateTempPassword(length = 8) {
@@ -1365,6 +1341,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
