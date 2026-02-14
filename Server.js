@@ -220,7 +220,7 @@ app.post("/sp_GetLoginDetByMob&Email", async (req, res) => {
 // ---------- NODEMAILER ----------
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
-  port: 587,
+  port: 25,
   secure: false, // must be false for 587
   requireTLS: true,
   auth: {
@@ -1358,6 +1358,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
