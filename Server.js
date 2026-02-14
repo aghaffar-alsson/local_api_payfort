@@ -218,7 +218,7 @@ app.post("/sp_GetLoginDetByMob&Email", async (req, res) => {
 //},
 //});
 // ---------- NODEMAILER ----------
-const nodemailer = require('nodemailer');
+//const nodemailer = require('nodemailer');
 
 // Create transporter
 const transporter = nodemailer.createTransport({
@@ -1365,6 +1365,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
