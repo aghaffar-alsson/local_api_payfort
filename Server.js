@@ -210,11 +210,21 @@ app.post("/sp_GetLoginDetByMob&Email", async (req, res) => {
 });
 
 //Configure NODEMAILER
+//const transporter = nodemailer.createTransport({
+//service: "gmail",
+//auth: {
+//user: 'fees@alsson.com',
+//pass: 'gwwowluzlabnfyqw',
+//},
+//});
+// ---------- NODEMAILER ----------
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: process.env.SMTP_HOST,
+  port: process.env.SMTP_PORT,
+  secure: true,
   auth: {
-    user: 'fees@alsson.com',
-    pass: 'gwwowluzlabnfyqw',
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
   },
 });
 
@@ -1325,5 +1335,6 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
