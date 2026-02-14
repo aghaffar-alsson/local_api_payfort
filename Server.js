@@ -304,7 +304,7 @@ function generateTempPassword(length = 8) {
 }
 
 //CREATE NEW LOGIN
-import bcrypt from "bcrypt";
+
 
 // CREATE NEW LOGIN
 app.post('/signup', async (req, res) => {
@@ -319,7 +319,8 @@ app.post('/signup', async (req, res) => {
     const tempPswd = generateTempPassword(10);
 
     // 2️⃣ Hash password (DO NOT store plain text)
-    const hashedPswd = await bcrypt.hash(tempPswd, 10);
+    //const hashedPswd = await bcrypt.hash(tempPswd, 10);
+    const hashedPswd = tempPswd
 
     // 3️⃣ Save to database
     const pool = await sql.connect(sqlConfig);
@@ -1497,6 +1498,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
