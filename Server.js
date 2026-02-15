@@ -317,14 +317,19 @@ app.post('/signup', async (req, res) => {
   try {
     // 1️⃣ Generate temporary password
     const tempPswd = generateTempPassword(10);
-
+    console.log(tempPswd);
     // 2️⃣ Hash password (DO NOT store plain text)
     //const hashedPswd = await bcrypt.hash(tempPswd, 10);
     const hashedPswd = tempPswd
-
+    console.log(hashedPswd);
     // 3️⃣ Save to database
     const pool = await sql.connect(sqlConfig);
-
+    console.log(yr)
+    console.log(famid)
+    console.log(famnm)
+    console.log(emll)
+    console.log(mobb)
+    console.log(hashedPswd)
     await pool.request()
       .input('yr', sql.Char(4), yr)
       .input('famid', sql.Int, famid)
@@ -1498,6 +1503,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
