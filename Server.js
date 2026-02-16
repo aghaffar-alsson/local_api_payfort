@@ -316,12 +316,9 @@ app.post('/signup', async (req, res) => {
 
   try {
     // 1️⃣ Generate temporary password
+    console.log("Function type:", typeof generateTempPassword);
     const tempPswd = generateTempPassword(10);
-console.log("Function type:", typeof generateTempPassword);
-
-const tempPswd = generateTempPassword(10);
-
-console.log("Generated password:", tempPswd);
+    console.log("Generated password:", tempPswd);
     console.log(tempPswd);
     // 2️⃣ Hash password (DO NOT store plain text)
     //const hashedPswd = await bcrypt.hash(tempPswd, 10);
@@ -1508,6 +1505,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
