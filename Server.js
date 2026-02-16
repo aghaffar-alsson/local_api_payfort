@@ -301,7 +301,6 @@ function generateTempPassword(length = 8) {
     password += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return password;
-  console.log(password);
 }
 
 //CREATE NEW LOGIN
@@ -318,13 +317,18 @@ app.post('/signup', async (req, res) => {
   try {
     // 1️⃣ Generate temporary password
     const tempPswd = generateTempPassword(10);
+console.log("Function type:", typeof generateTempPassword);
+
+const tempPswd = generateTempPassword(10);
+
+console.log("Generated password:", tempPswd);
     console.log(tempPswd);
     // 2️⃣ Hash password (DO NOT store plain text)
     //const hashedPswd = await bcrypt.hash(tempPswd, 10);
     const hashedPswd = tempPswd
     console.log(hashedPswd);
     // 3️⃣ Save to database
-    const pool = await sql.connect(sqlConfig);
+    const pool = await poolPromise;
     console.log(yr)
     console.log(famid)
     console.log(famnm)
@@ -387,7 +391,7 @@ app.post('/signup', async (req, res) => {
 //     const tempPswd = generateTempPassword(10);
 //     const hashedPswd = tempPswd;    
 
-//     const pool = await sql.connect(sqlConfig);
+//     const pool = await poolPromise;
 //     await pool.request()
 //       .input('yr', sql.Char(4), yr)
 //       .input('famid', sql.Int, famid)
@@ -437,7 +441,7 @@ app.post('/modifylogin', async (req, res) => {
     console.log(tempPswd)
     //const hashedPswd = await bcrypt.hash(tempPswd, 10);    
     const hashedPswd = tempPswd;    
-    const pool = await sql.connect(sqlConfig);
+    const pool = await poolPromise;
     const result = await pool
       .request()
       .input('yr', sql.Char(4), yr)
@@ -518,7 +522,7 @@ app.post('/chkLoginByMob', async (req, res) => {
   }
 
   try {
-    const pool = await sql.connect(sqlConfig);
+    const pool = await poolPromise;
     const result = await pool
       .request()
       .input('yr', sql.Char(4), yr)
@@ -547,7 +551,7 @@ app.post('/chkLoginByEml', async (req, res) => {
   }
 
   try {
-    const pool = await sql.connect(sqlConfig);
+    const pool = await poolPromise;
     const result = await pool
       .request()
       .input('yr', sql.Char(4), yr)
@@ -576,7 +580,7 @@ app.post('/chkLogin', async (req, res) => {
   }
 
   try {
-    const pool = await sql.connect(sqlConfig);
+    const pool = await poolPromise;
     const result = await pool
       .request()
       .input('yr', sql.Char(4), yr)
@@ -610,7 +614,7 @@ app.put('/updtLogin', async (req, res) => {
   }
 
   try {
-    const pool = await sql.connect(sqlConfig);
+    const pool = await poolPromise;
     const result = await pool
       .request()
       .input('yr', sql.Char(4), yr)
@@ -646,7 +650,7 @@ app.post('/chkLoginByPswd', async (req, res) => {
   //console.log(pswd)
   //console.log(encryptedPswd)
   try {
-    const pool = await sql.connect(sqlConfig);
+    const pool = await poolPromise;
     const result = await pool
       .request()
       .input('yr', sql.Char(4), yr)
@@ -683,7 +687,7 @@ app.post('/sp_GetFmInfo', async (req, res) => {
   }
 
   try {
-    const pool = await sql.connect(sqlConfig);
+    const pool = await poolPromise;
     const result = await pool
       .request()
       .input('yrNo', sql.Char(4), yrNo)
@@ -720,7 +724,7 @@ app.post('/sp_GetFmInfo', async (req, res) => {
 app.get("/bankdet/:bnkId", async (req, res) => {
   const bnkId = parseInt(req.params.bnkId, 10);
   try {
-    const pool = await sql.connect(sqlConfig);
+    const pool = await poolPromise;
     const result = await pool.request()
       .input("bnkid", sql.Int, bnkId)
       .execute("sp_GetBnkDet");
@@ -736,7 +740,7 @@ app.get("/bankdet/:bnkId", async (req, res) => {
 // --- Banks API
 app.get("/banks", async (req, res) => {
   try {
-    const pool = await sql.connect(sqlConfig);
+    const pool = await poolPromise;
     const result = await pool.request().query(
       "SELECT BANKID, BANKNAME FROM [FEESFORMSSETUP] ORDER BY BANKNAME"
     );
@@ -756,7 +760,7 @@ app.post('/getstfees', async (req, res) => {
   }
 
   try {
-    const pool = await sql.connect(sqlConfig);
+    const pool = await poolPromise;
     const result = await pool
       .request()
       .input('famid', sql.Int, famid)
@@ -784,7 +788,7 @@ app.post('/getstpayhist', async (req, res) => {
     return res.status(400).json({ message: 'Missing required fields' });
   }
   try {
-    const pool = await sql.connect(sqlConfig);
+    const pool = await poolPromise;
     const result = await pool
       .request()
       .input('famid', sql.Int, famid)
@@ -812,7 +816,7 @@ app.post('/settlefees', async (req, res) => {
   }
 
   try {
-    const pool = await sql.connect(sqlConfig);
+    const pool = await poolPromise;
 
     // SETTLE FEES PAYMENTS FOR THE CURRENT STUDENT
     await pool
@@ -1381,7 +1385,7 @@ function drawTable(doc, rows, fontSize = 12) {
 
 // // ---------- LOG PAYMENT ACTION ----------
 // async function keepTrackPaymentAction(paymentItems) {
-//   const pool = await sql.connect(sqlConfig);
+//   const pool = await poolPromise;
 //   const transaction = new sql.Transaction(pool);
 
 //   try {
@@ -1504,6 +1508,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
