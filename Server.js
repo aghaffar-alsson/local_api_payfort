@@ -366,7 +366,7 @@ app.post('/signup', async (req, res) => {
     });
 
     // 5️⃣ Do NOT return password in API response (security best practice)
-    res.json({ message: 'Signup successful!' });
+    res.json({ message: 'Signup successful!', tempPswd });
 
   } catch (err) {
     console.error('Signup error:', err);
@@ -1505,6 +1505,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
