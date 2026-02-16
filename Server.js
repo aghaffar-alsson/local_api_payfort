@@ -301,6 +301,7 @@ function generateTempPassword(length = 8) {
     password += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return password;
+  console.log(password);
 }
 
 //CREATE NEW LOGIN
@@ -1503,6 +1504,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
+
 
 
 
