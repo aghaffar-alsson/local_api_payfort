@@ -849,7 +849,7 @@ app.post("/loginchk", async (req, res) => {
       `);
     // 7) Send OTP email
     await sendEmail({
-      to: emll,
+      to: record.EMAIL_ADDRESS,
       subject: "Your Login Verification Code",
       html: `
         <font face="Calibri" size="3" color="blue">
@@ -892,104 +892,93 @@ app.post("/loginchk", async (req, res) => {
 app.post("/resend-login-code", async (req, res) => {
   const { verificationToken } = req.body;
   if (!verificationToken) {
-    return res.status(400).json({
-    success: false,
-    message: "Missing verification token"
-  });
+    return res.status(400).json({ success: false, message: "Missing verification token" });
   }
 
   try {
     const pool = await sql.connect(sqlConfig);
-  // 1) Load existing OTP request
-  const result = await pool
-  .request()
-  .input("verificationToken", sql.NVarChar(100), String(verificationToken).trim())
-  .query(`SELECT TOP 1OTP_ID,FAMID,FAMNM,EMAIL_ADDRESS,MOBILE_NUMBER,EXPIRES_AT,IS_USED,ATTEMPTS 
-    FROM LOGIN_OTP_VERIFICATIONS WHERE VERIFICATION_TOKEN = @verificationToken
-  `);
-  const record = result.recordset?.[0];
-  if (!record) {
-  return res.status(400).json({
-    success: false,
-    message: "Invalid verification request"
-  });
-  }
-  // 2) Decide if resend is allowed
-  const isExpired = new Date() > new Date(record.EXPIRES_AT);
-  const attemptsExceeded = record.ATTEMPTS >= 3;
-  if (!isExpired && !attemptsExceeded) {
-  return res.status(400).json({
-    success: false,
-    message: "You can request a new code only after expiry or after exceeding maximum attempts"
-  });
-  }
-  // 3) Mark old OTP as used
-  await pool
-  .request()
-  .input("otpId", sql.Int, record.OTP_ID)
-  .query(`UPDATE LOGIN_OTP_VERIFICATIONS SET IS_USED = 1,USED_AT = GETDATE() WHERE OTP_ID = @otpId`);
-  // 4) Generate new OTP
-  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-  const otpHash = await bcrypt.hash(otpCode, 10);
-  // 5) New token + expiry
-  const newVerificationToken = crypto.randomUUID();
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-  // 6) Insert new OTP record
-  await pool
-  .request()
-  .input("verificationToken", sql.NVarChar(100), newVerificationToken)
-  .input("famid", sql.Int, record.FAMID || record.famid)
-  .input("famnm", sql.NVarChar(255), record.FAMNM || record.famnm)
-  .input("emll", sql.NVarChar(255), record.EMAIL_ADDRESS || record.email_address)
-  .input("mobno", sql.NVarChar(20), record.MOBILE_NUMBER || record.mobile_number)
-  .input("otpCode", sql.NVarChar(255), otpHash)
-  .input("expiresAt", sql.DateTime, expiresAt)
-  .query(`INSERT INTO LOGIN_OTP_VERIFICATIONS (VERIFICATION_TOKEN,FAMID,FAMNM,EMAIL_ADDRESS,MOBILE_NUMBER,OTP_CODE,
-    EXPIRES_AT,IS_USED,ATTEMPTS,CREATED_AT) VALUES
-    (@verificationToken,@famid,@famnm,@emll,@mobno,@otpCode,@expiresAt,0,0,GETDATE())
-  `);
 
-  // 7) Send email
-      await sendEmail({
-      to: emll,
+    // 1) Load existing OTP request
+    const result = await pool.request()
+      .input("verificationToken", sql.NVarChar(100), String(verificationToken).trim())
+      .query(`SELECT TOP 1 OTP_ID, FAMID, FAMNM, EMAIL_ADDRESS, MOBILE_NUMBER, EXPIRES_AT, IS_USED, ATTEMPTS 
+              FROM LOGIN_OTP_VERIFICATIONS WHERE VERIFICATION_TOKEN = @verificationToken`);
+
+    const record = result.recordset?.[0];
+    if (!record) {
+      return res.status(400).json({ success: false, message: "Invalid verification request" });
+    }
+
+    // 2) Check if resend allowed
+    const isExpired = new Date() > new Date(record.EXPIRES_AT);
+    const attemptsExceeded = record.ATTEMPTS >= 3;
+    if (!isExpired && !attemptsExceeded) {
+      return res.status(400).json({
+        success: false,
+        message: "You can request a new code only after expiry or after exceeding maximum attempts"
+      });
+    }
+
+    // 3) Mark old OTP as used
+    await pool.request()
+      .input("otpId", sql.Int, record.OTP_ID)
+      .query(`UPDATE LOGIN_OTP_VERIFICATIONS SET IS_USED = 1, USED_AT = GETDATE() WHERE OTP_ID = @otpId`);
+
+    // 4) Generate new OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpHash = await bcrypt.hash(otpCode, 10);
+
+    // 5) New token + expiry
+    const newVerificationToken = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    // 6) Insert new OTP record
+    await pool.request()
+      .input("verificationToken", sql.NVarChar(100), newVerificationToken)
+      .input("famid", sql.Int, record.FAMID)
+      .input("famnm", sql.NVarChar(255), record.FAMNM)
+      .input("emll", sql.NVarChar(255), record.EMAIL_ADDRESS)
+      .input("mobno", sql.NVarChar(20), record.MOBILE_NUMBER)
+      .input("otpCode", sql.NVarChar(255), otpHash)
+      .input("expiresAt", sql.DateTime, expiresAt)
+      .query(`INSERT INTO LOGIN_OTP_VERIFICATIONS 
+              (VERIFICATION_TOKEN,FAMID,FAMNM,EMAIL_ADDRESS,MOBILE_NUMBER,OTP_CODE,EXPIRES_AT,IS_USED,ATTEMPTS,CREATED_AT)
+              VALUES (@verificationToken,@famid,@famnm,@emll,@mobno,@otpCode,@expiresAt,0,0,GETDATE())`);
+
+    // 7) Send email
+    await sendEmail({
+      to: record.EMAIL_ADDRESS,
       subject: "Your New Login Verification Code",
       html: `
         <font face="Calibri" size="3" color="blue">
-          <h3>Dear Parent: $ ${record.FAMNM || record.famnm},</h3>
-          <br/>
-          <h3>Welcome to our portal,</h3>
+          <h3>Dear Parent: ${record.FAMNM},</h3>
           <br/>
           <p>Your verification OTP code is:</p>
           <h2 style="letter-spacing: 4px;">${otpCode}</h2>
           <br/>
           <p>This OTP code will expire in 5 minutes.</p>
-          <br/>
           <p>Maximum 3 attempts allowed.</p>
-          <br/>
           <p>Finance Department - Fees Section</p>
           <p>El Alsson School</p>
-          <p>Best regards,</p>
         </font>`,
     });
 
-
-
-  return res.json({
-    success: true,
-    message: "A new verification code has been sent to your email",
-    verificationToken: newVerificationToken,
-    otpRequired: true,
-    expiresAt: expiresAt.toISOString(),
-    maxAttempts: 3
-  });
+    return res.json({
+      success: true,
+      message: "A new verification code has been sent to your email",
+      verificationToken: newVerificationToken,
+      otpRequired: true,
+      expiresAt: expiresAt.toISOString(),
+      maxAttempts: 3
+    });
 
   } catch (err) {
-  console.error("resend-login-code error:", err);
-  return res.status(500).json({
-  success: false,
-  message: "Server error",
-  error: err.message
-  });
+    console.error("resend-login-code error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message
+    });
   }
 });
 
