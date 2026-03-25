@@ -14,6 +14,7 @@ import { createRequire } from 'module';
 import bcrypt from "bcrypt";
 import fs from "fs-extra";
 import PDFDocument from "pdfkit";
+import crypto from "crypto";
 //import { getTransporter } from "./mailer.js"; // the above transporter file
 //******************OPEN CONNECTION & ESTABLISH SERVER************************/
 const require = createRequire(import.meta.url);
@@ -74,6 +75,19 @@ const sqlConfig = {
   requestTimeout: 25000,
 };
 console.log(sqlConfig)
+
+// SQL Config
+// const sqlConfig = {
+//   server: "41.128.168.249",
+//   database: "feesweb",
+//   user: "sa",
+//   password: "Finance@2025",
+//   options: {
+//     encrypt: false,
+//     trustServerCertificate: true,
+//   },
+//   requestTimeout: 90000,
+// };
 
 // --- OAuth2 Setup ---
 //console.log(process.env.CLIENT_ID)
@@ -512,32 +526,46 @@ app.post('/modifylogin', async (req, res) => {
 
 //CHECK THE EXISTENCE OF FAMILY LOGIN USING THE SUPPLIED MOBILE NUMBER
 app.post('/chkLoginByMob', async (req, res) => {
-  const { yr,  mobb } = req.body;
+  const { yr, mobb } = req.body;
 
-  if (!yr   || !mobb  ) {
-    return res.status(400).json({ message: 'Missing required fields' });
+  if (!yr || !mobb) {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing required fields'
+    });
   }
 
   try {
-    const pool = await poolPromise;
+    const pool = await sql.connect(sqlConfig);
     const result = await pool
       .request()
       .input('yr', sql.Char(4), yr)
       .input('mobb', sql.NVarChar(11), mobb)
       .execute('chkLoginByMob');
-      const record = result.recordset?.[0];
-      //console.log(record)
-      if (record) {
-        res.json({ famid: record.famid, famnm: record.famnm });
-      } else {
-        res.json({ message: 'Unregistered Mobile Number' });
-      }
+
+    const record = result.recordset?.[0];
+
+    if (record) {
+      return res.json({
+        success: true,
+        famid: record.famid,
+        famnm: record.famnm
+      });
+    }
+
+    return res.json({
+      success: false,
+      message: 'Unregistered Mobile Number'
+    });
   } catch (err) {
     console.error('Database Error:', err);
-    res.status(500).json({ message: 'Database Error', error: err.message });
+    return res.status(500).json({
+      success: false,
+      message: 'Database Error',
+      error: err.message
+    });
   }
 });
-
 
 //CHECK THE EXISTENCE OF FAMILY LOGIN USING THE SUPPLIED EMAIL ADDRESS
 app.post('/chkLoginByEml', async (req, res) => {
@@ -548,7 +576,7 @@ app.post('/chkLoginByEml', async (req, res) => {
   }
 
   try {
-    const pool = await poolPromise;
+    const pool = await sql.connect(sqlConfig);
     const result = await pool
       .request()
       .input('yr', sql.Char(4), yr)
@@ -559,7 +587,7 @@ app.post('/chkLoginByEml', async (req, res) => {
       if (record) {
         res.json({ famid: record.famid, famnm: record.famnm });
       } else {
-        res.json({ message: 'Unregistered Mobile Number' });
+        res.json({ message: 'Unregistered Email Address' });
       }
       
   } catch (err) {
@@ -570,31 +598,47 @@ app.post('/chkLoginByEml', async (req, res) => {
 
 //CHECK THE EXISTENCE OF FAMILY LOGIN USING THE EMAIL ADDRESS & MOBILE NUMBER
 app.post('/chkLogin', async (req, res) => {
-  const { yr, emll , mobb } = req.body;
+  const { yr, emll, mobb } = req.body;
 
-  if (!yr   || !emll || !mobb ) {
-    return res.status(400).json({ message: 'Missing required fields' });
+  if (!yr || !emll || !mobb) {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing required fields'
+    });
   }
 
   try {
-    const pool = await poolPromise;
+    const pool = await sql.connect(sqlConfig);
+
     const result = await pool
       .request()
-      .input('yr', sql.Char(4), yr)
-      .input('emll', sql.NVarChar(255), emll)
-      .input('mobb', sql.NVarChar(11), mobb)
+      .input('yr', sql.Char(4), String(yr).trim())
+      .input('emll', sql.NVarChar(255), String(emll).trim())
+      .input('mobb', sql.NVarChar(11), String(mobb).trim())
       .execute('chkLogin');
-      const record = result.recordset?.[0];
-      //console.log(record)
-      if (record) {
-        res.json({ famid: record.famid, famnm: record.famnm });
-      } else {
-        res.json({ message: 'Unregistered Mobile Number or Email Address' });
-      }
-      
+
+    const record = result.recordset?.[0];
+
+    if (record) {
+      return res.json({
+        success: true,
+        famid: record.famid,
+        famnm: record.famnm
+      });
+    }
+
+    return res.status(404).json({
+      success: false,
+      message: 'Unregistered Mobile Number or Email Address'
+    });
+
   } catch (err) {
-    console.error('Database Error:', err);
-    res.status(500).json({ message: 'Database Error', error: err.message });
+    console.error('Database Error in /chkLogin:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Database Error',
+      error: err.message
+    });
   }
 });
 
@@ -732,7 +776,413 @@ app.get("/bankdet/:bnkId", async (req, res) => {
     res.status(500).send("Database error");
   }
 });
+//Generate random OTP and verification token
+function generateOtp() {
+  return Math.floor(100000 + Math.random() * 900000).toString(); // 6 digits
+}
+function generateVerificationToken() {
+  return crypto.randomUUID();
+}
+// API to validate credentials, generate OTP, store it in DB, and send it by email
+app.post("/loginchk", async (req, res) => {
+  const { yr, emll, pswd, mobno } = req.body;
 
+  if (!yr || !emll || !pswd || !mobno) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing required fields"
+    });
+  }
+
+  try {
+    const pool = await sql.connect(sqlConfig);
+
+    // 1) Validate credentials using your existing stored procedure
+    const result = await pool
+      .request()
+      .input("yr", sql.Char(4), yr)
+      .input("pswd", sql.NVarChar(255), pswd) // currently plain text in your system
+      .input("email_reg", sql.NVarChar(255), emll)
+      .input("phone_reg", sql.NVarChar(20), mobno)
+      .execute("chkLoginByPswd");
+    const record = result.recordset?.[0];
+    if (!record || !record.famid || !record.famnm) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid login credentials"
+      });
+    }
+    // 2) Generate 6-digit OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // 3) Generate verification token
+    const verificationToken = crypto.randomUUID();
+    // 4) Expiry = 5 minutes
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    const otpHash = await bcrypt.hash(otpCode, 10);    
+    console.log("OTP plain:", otpCode);
+    console.log("OTP hash:", otpHash);    
+    // 5) Invalidate previous unused OTPs for same user (optional but recommended)
+    await pool
+      .request()
+      .input("famid", sql.Int, record.famid)
+      .input("emll", sql.NVarChar(255), emll)
+      .input("mobno", sql.NVarChar(20), mobno)
+      .query(`
+        UPDATE LOGIN_OTP_VERIFICATIONS SET IS_USED = 1, USED_AT = GETDATE() WHERE FAMID = @famid  
+        AND EMAIL_ADDRESS = @emll AND MOBILE_NUMBER = @mobno AND IS_USED = 0
+      `);
+
+    // 6) Insert new OTP record into DB table
+    await pool
+      .request()
+      .input("verificationToken", sql.NVarChar(100), verificationToken)
+      .input("famid", sql.Int, record.famid)
+      .input("famnm", sql.NVarChar(255), record.famnm)
+      .input("emll", sql.NVarChar(255), emll)
+      .input("mobno", sql.NVarChar(20), mobno)
+      .input("otpCode", sql.NVarChar(255), otpHash)
+      .input("expiresAt", sql.DateTime, expiresAt)
+      .query(`
+        INSERT INTO LOGIN_OTP_VERIFICATIONS
+        (VERIFICATION_TOKEN,FAMID,FAMNM,EMAIL_ADDRESS,MOBILE_NUMBER,OTP_CODE,EXPIRES_AT,IS_USED,ATTEMPTS,CREATED_AT)
+        VALUES (@verificationToken,@famid,@famnm,@emll,@mobno,@otpCode,@expiresAt,0,0,GETDATE())
+      `);
+    // 7) Send OTP email
+        async function sendOTPEmail(emll, otpCode, record) {
+          try {
+            const oauth2Client = new OAuth2(
+              process.env.MAIL_CLIENT_ID,
+              process.env.MAIL_CLIENT_SECRET,
+              process.env.MAIL_REDIRECT_URI
+            );
+            oauth2Client.setCredentials({
+              refresh_token: process.env.MAIL_REFRESH_TOKEN,
+            });
+            const accessToken = await oauth2Client.getAccessToken();
+            const transporter = nodemailer.createTransport({
+              service: "gmail",
+              auth: {
+                type: "OAuth2",
+                user: process.env.MAIL_USER,
+                clientId: process.env.MAIL_CLIENT_ID,
+                clientSecret: process.env.MAIL_CLIENT_SECRET,
+                refreshToken: process.env.MAIL_REFRESH_TOKEN,
+                accessToken: accessToken.token,
+              },
+            });
+
+    const mailOptions = {
+      from: process.env.MAIL_USER,
+      to: emll,
+      subject: "Your Login Verification Code",
+      html: `
+        <font face="Calibri" size="3" color="blue">
+          <h3>Dear Parent: ${record.famnm},</h3>
+          <br/>
+          <h3>Welcome to our portal,</h3>
+          <br/>
+          <p>Your verification OTP code is:</p>
+          <h2 style="letter-spacing: 4px;">${otpCode}</h2>
+          <br/>
+          <p>This OTP code will expire in 5 minutes.</p>
+          <br/>
+          <p>Maximum 3 attempts allowed.</p>
+          <br/>
+          <p>Finance Department - Fees Section</p>
+          <p>El Alsson School</p>
+          <p>Best regards,</p>
+        </font>
+      `,
+    };
+
+    const result = await transporter.sendMail(mailOptions);
+    console.log("Email sent:", result.messageId);
+    return true;
+  } catch (err) {
+    console.error("Failed to send email:", err);
+    return false;
+  }
+}
+    return res.json({
+      success: true,
+      otpRequired: true,
+      verificationToken,
+      expiresAt: expiresAt.toISOString(),
+      maxAttempts: 3,
+      message: "Verification code sent to your email"
+    });
+  } catch (err) {
+    console.error("loginchk error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message
+    });
+  }
+});
+
+// API to resend OTP code if expired or attempts exceeded
+app.post("/resend-login-code", async (req, res) => {
+  const { verificationToken } = req.body;
+  if (!verificationToken) {
+    return res.status(400).json({
+    success: false,
+    message: "Missing verification token"
+  });
+  }
+
+  try {
+    const pool = await sql.connect(sqlConfig);
+  // 1) Load existing OTP request
+  const result = await pool
+  .request()
+  .input("verificationToken", sql.NVarChar(100), String(verificationToken).trim())
+  .query(`SELECT TOP 1OTP_ID,FAMID,FAMNM,EMAIL_ADDRESS,MOBILE_NUMBER,EXPIRES_AT,IS_USED,ATTEMPTS 
+    FROM LOGIN_OTP_VERIFICATIONS WHERE VERIFICATION_TOKEN = @verificationToken
+  `);
+  const record = result.recordset?.[0];
+  if (!record) {
+  return res.status(400).json({
+    success: false,
+    message: "Invalid verification request"
+  });
+  }
+  // 2) Decide if resend is allowed
+  const isExpired = new Date() > new Date(record.EXPIRES_AT);
+  const attemptsExceeded = record.ATTEMPTS >= 3;
+  if (!isExpired && !attemptsExceeded) {
+  return res.status(400).json({
+    success: false,
+    message: "You can request a new code only after expiry or after exceeding maximum attempts"
+  });
+  }
+  // 3) Mark old OTP as used
+  await pool
+  .request()
+  .input("otpId", sql.Int, record.OTP_ID)
+  .query(`UPDATE LOGIN_OTP_VERIFICATIONS SET IS_USED = 1,USED_AT = GETDATE() WHERE OTP_ID = @otpId`);
+  // 4) Generate new OTP
+  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpHash = await bcrypt.hash(otpCode, 10);
+  // 5) New token + expiry
+  const newVerificationToken = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+  // 6) Insert new OTP record
+  await pool
+  .request()
+  .input("verificationToken", sql.NVarChar(100), newVerificationToken)
+  .input("famid", sql.Int, record.FAMID || record.famid)
+  .input("famnm", sql.NVarChar(255), record.FAMNM || record.famnm)
+  .input("emll", sql.NVarChar(255), record.EMAIL_ADDRESS || record.email_address)
+  .input("mobno", sql.NVarChar(20), record.MOBILE_NUMBER || record.mobile_number)
+  .input("otpCode", sql.NVarChar(255), otpHash)
+  .input("expiresAt", sql.DateTime, expiresAt)
+  .query(`INSERT INTO LOGIN_OTP_VERIFICATIONS (VERIFICATION_TOKEN,FAMID,FAMNM,EMAIL_ADDRESS,MOBILE_NUMBER,OTP_CODE,
+    EXPIRES_AT,IS_USED,ATTEMPTS,CREATED_AT) VALUES
+    (@verificationToken,@famid,@famnm,@emll,@mobno,@otpCode,@expiresAt,0,0,GETDATE())
+  `);
+
+  // 7) Send email
+    export async function sendNewOTPEmail(record, otpCode) {
+      try {
+        const oauth2Client = new OAuth2(
+          process.env.MAIL_CLIENT_ID,
+          process.env.MAIL_CLIENT_SECRET,
+          process.env.MAIL_REDIRECT_URI
+        );
+    
+        oauth2Client.setCredentials({
+          refresh_token: process.env.MAIL_REFRESH_TOKEN,
+        });
+    
+        const accessToken = await oauth2Client.getAccessToken();
+    
+        const transporter = nodemailer.createTransport({
+          service: "gmail",
+          auth: {
+            type: "OAuth2",
+            user: process.env.MAIL_USER,
+            clientId: process.env.MAIL_CLIENT_ID,
+            clientSecret: process.env.MAIL_CLIENT_SECRET,
+            refreshToken: process.env.MAIL_REFRESH_TOKEN,
+            accessToken: accessToken.token,
+          },
+        });
+    
+        const mailOptions = {
+          from: process.env.MAIL_USER,
+          to: record.EMAIL_ADDRESS || record.email_address,
+          subject: "Your New Login Verification Code",
+          html: `
+            <div style="font-family: Calibri, Arial, sans-serif; color: #1f3c88;">
+              <h3>Dear Parent: ${record.FAMNM || record.famnm},</h3>
+              <p>You requested a new verification code.</p>
+              <p>Your new OTP code is:</p>
+              <h2 style="letter-spacing: 4px;">${otpCode}</h2>
+              <p>This OTP code will expire in 5 minutes.</p>
+              <p>Maximum 3 attempts allowed.</p>
+              <br/>
+              <p>Finance Department - Fees Section</p>
+              <p>El Alsson School</p>
+              <p>Best regards,</p>
+            </div>
+          `,
+        };
+    
+        const result = await transporter.sendMail(mailOptions);
+        console.log("New OTP Email sent:", result.messageId);
+        return true;
+      } catch (err) {
+        console.error("Failed to send New OTP email:", err);
+        return false;
+      }
+    }
+
+  return res.json({
+    success: true,
+    message: "A new verification code has been sent to your email",
+    verificationToken: newVerificationToken,
+    otpRequired: true,
+    expiresAt: expiresAt.toISOString(),
+    maxAttempts: 3
+  });
+
+  } catch (err) {
+  console.error("resend-login-code error:", err);
+  return res.status(500).json({
+  success: false,
+  message: "Server error",
+  error: err.message
+  });
+  }
+});
+
+//API to verify the OTP code sent to email, then create session/JWT if valid
+app.post("/verify-login-code", async (req, res) => {
+  const { verificationToken, code } = req.body;
+  if (!verificationToken || !code) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing verification token or code"
+    });
+  }
+  try {
+    const pool = await sql.connect(sqlConfig);
+    const result = await pool
+      .request()
+      .input("verificationToken", sql.NVarChar(100), String(verificationToken).trim())
+      .query(`
+        SELECT TOP 1 OTP_ID,FAMID,FAMNM,EMAIL_ADDRESS,MOBILE_NUMBER,OTP_CODE,EXPIRES_AT,IS_USED, ATTEMPTS 
+        FROM LOGIN_OTP_VERIFICATIONS WHERE VERIFICATION_TOKEN = @verificationToken
+      `);
+    const record = result.recordset?.[0];
+    if (!record) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired verification request",
+        reason: "INVALID_REQUEST"
+      });
+    }
+    if (record.IS_USED) {
+      return res.status(400).json({
+        success: false,
+        message: "This verification code is no longer valid",
+        reason: "OTP_USED",
+        allowResend: true
+      });
+    }
+    if (new Date() > new Date(record.EXPIRES_AT)) {
+      await pool
+        .request()
+        .input("otpId", sql.Int, record.OTP_ID)
+        .query(`UPDATE LOGIN_OTP_VERIFICATIONS SET IS_USED = 1,USED_AT = GETDATE() WHERE OTP_ID = @otpId`);
+
+      return res.status(400).json({
+        success: false,
+        message: "Verification code expired",
+        reason: "OTP_EXPIRED",
+        allowResend: true
+      });
+    }
+
+    if (record.ATTEMPTS >= 3) {
+      await pool
+        .request()
+        .input("otpId", sql.Int, record.OTP_ID)
+        .query(`UPDATE LOGIN_OTP_VERIFICATIONS SET IS_USED = 1,USED_AT = GETDATE() WHERE OTP_ID = @otpId`);
+
+      return res.status(429).json({
+        success: false,
+        message: "Number of attempts exceeded. Please request a new verification code.",
+        reason: "ATTEMPTS_EXCEEDED",
+        allowResend: true
+      });
+    }
+    const isMatch = await bcrypt.compare(String(code).trim(),String(record.OTP_CODE).trim());
+
+    if (!isMatch) {
+      // increment + auto-lock on 3rd bad try
+      await pool
+        .request()
+        .input("otpId", sql.Int, record.OTP_ID)
+        .query(`
+          UPDATE LOGIN_OTP_VERIFICATIONS SET ATTEMPTS = ATTEMPTS + 1,
+          IS_USED = CASE WHEN ATTEMPTS + 1 >= 3 THEN 1 ELSE IS_USED END,
+          USED_AT = CASE WHEN ATTEMPTS + 1 >= 3 THEN GETDATE() ELSE USED_AT END
+          WHERE OTP_ID = @otpId
+        `);
+
+        const nextAttempts = (record.ATTEMPTS || 0) + 1;
+        const lockedNow = nextAttempts >= 3;
+
+        return res.status(401).json({
+          success: false,
+          message: lockedNow
+            ? "Number of attempts exceeded. Please request a new verification code."
+            : "Invalid verification code, please try again",
+          reason: lockedNow ? "ATTEMPTS_EXCEEDED" : "INVALID_CODE",
+          allowResend: lockedNow,
+          attemptsLeft: Math.max(0, 3 - nextAttempts)
+        });
+      // const nextAttempts = (record.ATTEMPTS || 0) + 1;
+      // const lockedNow = nextAttempts >= 3;
+
+      // return res.status(401).json({
+      //   success: false,
+      //   message: lockedNow
+      //     ? "Number of attempts exceeded. Please request a new verification code."
+      //     : "Invalid verification code, please try again",
+      //   reason: lockedNow ? "ATTEMPTS_EXCEEDED" : "INVALID_CODE",
+      //   allowResend: lockedNow,
+      //   attemptsLeft: Math.max(0, 3 - nextAttempts)
+      // });
+    }
+
+    // successful verification -> create session (replace with your real token/session logic)
+    await pool
+      .request()
+      .input("otpId", sql.Int, record.OTP_ID)
+      .query(`UPDATE LOGIN_OTP_VERIFICATIONS SET IS_USED = 1,USED_AT = GETDATE() WHERE OTP_ID = @otpId`);
+
+    return res.json({
+      success: true,
+      message: "Login successful",
+      user: {
+        famid: record.FAMID,
+        famnm: record.FAMNM,
+        emll: record.EMAIL_ADDRESS,
+        mobno: record.MOBILE_NUMBER
+      }
+    });
+
+  } catch (err) {
+    console.error("verify-login-code error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
 
 // --- Banks API
 app.get("/banks", async (req, res) => {
