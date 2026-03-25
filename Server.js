@@ -983,7 +983,7 @@ app.post("/resend-login-code", async (req, res) => {
   `);
 
   // 7) Send email
-    export async function sendNewOTPEmail(record, otpCode) {
+    async function sendNewOTPEmail(record, otpCode) {
       try {
         const oauth2Client = new OAuth2(
           process.env.MAIL_CLIENT_ID,
