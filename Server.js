@@ -848,31 +848,7 @@ app.post("/loginchk", async (req, res) => {
         VALUES (@verificationToken,@famid,@famnm,@emll,@mobno,@otpCode,@expiresAt,0,0,GETDATE())
       `);
     // 7) Send OTP email
-        async function sendOTPEmail(emll, otpCode, record) {
-          try {
-            const oauth2Client = new OAuth2(
-              process.env.MAIL_CLIENT_ID,
-              process.env.MAIL_CLIENT_SECRET,
-              process.env.MAIL_REDIRECT_URI
-            );
-            oauth2Client.setCredentials({
-              refresh_token: process.env.MAIL_REFRESH_TOKEN,
-            });
-            const accessToken = await oauth2Client.getAccessToken();
-            const transporter = nodemailer.createTransport({
-              service: "gmail",
-              auth: {
-                type: "OAuth2",
-                user: process.env.MAIL_USER,
-                clientId: process.env.MAIL_CLIENT_ID,
-                clientSecret: process.env.MAIL_CLIENT_SECRET,
-                refreshToken: process.env.MAIL_REFRESH_TOKEN,
-                accessToken: accessToken.token,
-              },
-            });
-
-    const mailOptions = {
-      from: process.env.MAIL_USER,
+    await sendEmail({
       to: emll,
       subject: "Your Login Verification Code",
       html: `
@@ -891,18 +867,9 @@ app.post("/loginchk", async (req, res) => {
           <p>Finance Department - Fees Section</p>
           <p>El Alsson School</p>
           <p>Best regards,</p>
-        </font>
-      `,
-    };
+        </font>`,
+    });
 
-    const result = await transporter.sendMail(mailOptions);
-    console.log("Email sent:", result.messageId);
-    return true;
-  } catch (err) {
-    console.error("Failed to send email:", err);
-    return false;
-  }
-}
     return res.json({
       success: true,
       otpRequired: true,
@@ -983,60 +950,29 @@ app.post("/resend-login-code", async (req, res) => {
   `);
 
   // 7) Send email
-    async function sendNewOTPEmail(record, otpCode) {
-      try {
-        const oauth2Client = new OAuth2(
-          process.env.MAIL_CLIENT_ID,
-          process.env.MAIL_CLIENT_SECRET,
-          process.env.MAIL_REDIRECT_URI
-        );
-    
-        oauth2Client.setCredentials({
-          refresh_token: process.env.MAIL_REFRESH_TOKEN,
-        });
-    
-        const accessToken = await oauth2Client.getAccessToken();
-    
-        const transporter = nodemailer.createTransport({
-          service: "gmail",
-          auth: {
-            type: "OAuth2",
-            user: process.env.MAIL_USER,
-            clientId: process.env.MAIL_CLIENT_ID,
-            clientSecret: process.env.MAIL_CLIENT_SECRET,
-            refreshToken: process.env.MAIL_REFRESH_TOKEN,
-            accessToken: accessToken.token,
-          },
-        });
-    
-        const mailOptions = {
-          from: process.env.MAIL_USER,
-          to: record.EMAIL_ADDRESS || record.email_address,
-          subject: "Your New Login Verification Code",
-          html: `
-            <div style="font-family: Calibri, Arial, sans-serif; color: #1f3c88;">
-              <h3>Dear Parent: ${record.FAMNM || record.famnm},</h3>
-              <p>You requested a new verification code.</p>
-              <p>Your new OTP code is:</p>
-              <h2 style="letter-spacing: 4px;">${otpCode}</h2>
-              <p>This OTP code will expire in 5 minutes.</p>
-              <p>Maximum 3 attempts allowed.</p>
-              <br/>
-              <p>Finance Department - Fees Section</p>
-              <p>El Alsson School</p>
-              <p>Best regards,</p>
-            </div>
-          `,
-        };
-    
-        const result = await transporter.sendMail(mailOptions);
-        console.log("New OTP Email sent:", result.messageId);
-        return true;
-      } catch (err) {
-        console.error("Failed to send New OTP email:", err);
-        return false;
-      }
-    }
+      await sendEmail({
+      to: emll,
+      subject: "Your New Login Verification Code",
+      html: `
+        <font face="Calibri" size="3" color="blue">
+          <h3>Dear Parent: $ ${record.FAMNM || record.famnm},</h3>
+          <br/>
+          <h3>Welcome to our portal,</h3>
+          <br/>
+          <p>Your verification OTP code is:</p>
+          <h2 style="letter-spacing: 4px;">${otpCode}</h2>
+          <br/>
+          <p>This OTP code will expire in 5 minutes.</p>
+          <br/>
+          <p>Maximum 3 attempts allowed.</p>
+          <br/>
+          <p>Finance Department - Fees Section</p>
+          <p>El Alsson School</p>
+          <p>Best regards,</p>
+        </font>`,
+    });
+
+
 
   return res.json({
     success: true,
@@ -1585,144 +1521,6 @@ app.post("/send-receipt-email", async (req, res) => {
   }
 });
 
-
-// app.post("/send-receipt-email", async (req, res) => {
-//   try {
-//     const { receiptData } = req.body;
-
-//     if (!receiptData?.parentEmail || !receiptData?.amount) {
-//       return res.status(400).json({ error: "Invalid receiptData" });
-//     }
-
-//     const pdfBuffer = await generateReceiptPDF(receiptData);
-
-//     const mailOptions = {
-//       from: `"El Alsson School" <${process.env.VITE_SMTP_USER}>`,
-//       to: "fees@alsson.com",
-//       subject: `Payment Receipt ${receiptData.merchant_reference}`,
-//       text: "Please find the payment receipt attached.",
-//       attachments: [
-//         {
-//           filename: `receipt-${receiptData.merchant_reference}.pdf`,
-//           content: pdfBuffer,
-//           contentType: "application/pdf"
-//         }
-//       ]
-//     };
-
-//     await transporter.sendMail(mailOptions);
-
-//     res.json({ success: true });
-//   } catch (err) {
-//     console.error("Email error:", err);
-//     res.status(500).json({ error: err.message });
-//   }
-// });
-
-
-
-// export async function generateReceiptPDF(data) {
-//   console.log("Generating receipt PDF with data:", data);
-//   return new Promise((resolve, reject) => {
-//     try {
-//       const RECEIPTS_DIR = path.join(process.cwd(), "public", "receipts");
-//       if (!fs.existsSync(RECEIPTS_DIR)) fs.mkdirSync(RECEIPTS_DIR, { recursive: true });
-
-//       const filename = `receipt_${data.merchant_reference || data.fort_id}.pdf`;
-//       const filePath = path.join(RECEIPTS_DIR, filename);
-//       const publicUrl = `/receipts/${filename}`;
-
-//       const doc = new PDFDocument({
-//         size: "A4",
-//         margin: 10,
-//       });
-
-//       const stream = fs.createWriteStream(filePath);
-//       doc.pipe(stream);
-
-//       const primaryColor = "#0C3C78"; // School theme color
-
-//       // -----------------------------------------------------------
-//       // Header with Logo
-//       // -----------------------------------------------------------
-//       console.log("Logo path:", data.logoPath);
-//       if (data.logoPath && fs.existsSync(data.logoPath)) {
-//         doc.image(data.logoPath, 40, 40, { width: 90 });
-//       }
-
-//       doc
-//         .fontSize(20)
-//         .fillColor(primaryColor)
-//         .text("El Alsson School – Payment Receipt",  35, 45);
-
-//       doc
-//         .fontSize(10)
-//         .fillColor("black")
-//         .text(`Date: ${data.date}`, 35, 75);
-
-//       doc.moveDown(2);
-
-//       // -----------------------------------------------------------
-//       // Section Title
-//       // -----------------------------------------------------------
-//       doc
-//         .fontSize(16)
-//         .fillColor(primaryColor)
-//         .text("Receipt Details", { underline: true });
-
-//       doc.moveDown(1.5);
-
-//       // -----------------------------------------------------------
-//       // Summary Box
-//       // -----------------------------------------------------------
-//       drawBoxTitle(doc, "Payment Summary");
-
-//       doc
-//         .fontSize(12)
-//         .fillColor("black")
-//         .text(`Parent Email: ${data.parentEmail}`)
-//         .moveDown(0.3)
-//         .text(`Amount Paid: ${data.amount} EGP`)
-//         .moveDown(1);
-
-//       // -----------------------------------------------------------
-//       // Transaction Table
-//       // -----------------------------------------------------------
-//       drawBoxTitle(doc, "Transaction Information");
-
-//       const rows = [
-//         ["Transaction ID", data.fort_id],
-//         ["Order Reference", data.merchant_reference],
-//         ["Status", data.status],
-//         ["Message", data.response_message],
-//         ["Transaction Date", data.date],
-//       ];
-
-//       drawTable(doc, rows, 12);
-
-//       // -----------------------------------------------------------
-//       // Footer
-//       // -----------------------------------------------------------
-//       doc.moveDown(3);
-//       doc
-//         .fontSize(10)
-//         .fillColor("#555")
-//         .text("This receipt is automatically generated by El Alsson School - Online Fees Portal.",35, 400)
-//         // .moveDown(0.5)
-//         // .text("If you have questions, please contact: fees@alsson.com");
-
-//       doc.end();
-
-//       stream.on("finish", () => {
-//         resolve({ filePath, publicUrl });
-//       });
-//       stream.on("error", reject);
-//     } catch (err) {
-//       reject(err);
-//     }
-//   });
-// }
-
 export async function generateReceiptPDFWhatsApp(data) {
   return new Promise((resolve, reject) => {
     try {
@@ -1830,76 +1628,6 @@ function drawTable(doc, rows, fontSize = 12) {
   doc.moveDown(2);
 }
 
-// // ---------- LOG PAYMENT ACTION ----------
-// async function keepTrackPaymentAction(paymentItems) {
-//   const pool = await poolPromise;
-//   const transaction = new sql.Transaction(pool);
-
-//   try {
-//     await transaction.begin();
-
-//     const request = new sql.Request(transaction);
-
-//     // DELETE first
-//     await request
-//       .input("CURYEAR", sql.VarChar, paymentItems.curyear)
-//       .input("S_CODE", sql.VarChar, paymentItems.stid)
-//       .input("FAMID", sql.Int, paymentItems.famid)
-//       .input("SCHOOLID", sql.Int, paymentItems.schoolId)
-//       .input("INSTCODE", sql.Int, paymentItems.instCode)
-//       .input("FACENAME", sql.VarChar, paymentItems.facename)
-//       .query(`
-//         DELETE FROM APSTRANS
-//         WHERE CURYEAR=@CURYEAR
-//           AND S_CODE=@S_CODE
-//           AND FAMID=@FAMID
-//           AND SCHOOLID=@SCHOOLID
-//           AND InstCode=@INSTCODE
-//           AND FACENAME=@FACENAME
-//           AND SETTLED=0
-//       `);
-
-//     // INSERT
-//     await request
-//       .input("PAIDAMOUNT", sql.Numeric, paymentItems.amount)
-//       .input("TRNSDT", sql.Date, new Date())
-//       .query(`
-//         INSERT INTO APSTRANS
-//           (CURYEAR,S_CODE,FAMID,SCHOOLID,InstCode,FACENAME,PAIDAMOUNT,TRNSDT,SETTLED)
-//         VALUES
-//           (@CURYEAR,@S_CODE,@FAMID,@SCHOOLID,@INSTCODE,@FACENAME,@PAIDAMOUNT,@TRNSDT,0)
-//       `);
-
-//     await transaction.commit();
-//     console.log("Payment logged:", paymentItems.instCode);
-//   } catch (err) {
-//     await transaction.rollback();
-//     console.error("SQL Error:", err);
-//     throw err;
-//   }
-// }
-
-// app.post("/log-payment", async (req, res) => {
-//   const { paymentItems } = req.body;
-
-//   console.log("Incoming items:", paymentItems);
-
-//   if (!Array.isArray(paymentItems) || !paymentItems.length) {
-//     return res.status(400).json({ message: "paymentItems array is required" });
-//   }
-
-//   try {
-//     for (const item of paymentItems) {
-//       await keepTrackPaymentAction(item);
-//     }
-
-//     res.json({ success: true });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: err.message });
-//   }
-// });
-
-
 // Endpoint to generate WhatsApp link
 app.post("/generate-whatsapp-link", (req, res) => {
   try {
@@ -1955,24 +1683,3 @@ app.listen(PORT, "0.0.0.0", () => {
 
 
 //export default app;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
