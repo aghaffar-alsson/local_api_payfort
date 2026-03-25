@@ -848,12 +848,13 @@ app.post("/loginchk", async (req, res) => {
         VALUES (@verificationToken,@famid,@famnm,@emll,@mobno,@otpCode,@expiresAt,0,0,GETDATE())
       `);
     // 7) Send OTP email
+    // 7) Send email
     await sendEmail({
       to: record.EMAIL_ADDRESS,
       subject: "Your Login Verification Code",
       html: `
         <font face="Calibri" size="3" color="blue">
-          <h3>Dear Parent: ${record.famnm},</h3>
+          <h3>Dear Parent: ${record.FAMNM},</h3>
           <br/>
           <h3>Welcome to our portal,</h3>
           <br/>
