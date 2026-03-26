@@ -857,11 +857,11 @@ app.post("/loginchk", async (req, res) => {
     console.log("Sending OTP email to:", record.EMAIL_ADDRESS);
     console.log("Family Name:", record.FAMNM);
      sendEmail({
-      to: record.EMAIL_ADDRESS,
+      to: record.eml,
       subject: "Your Login Verification Code",
       html: `
         <font face="Calibri" size="3" color="blue">
-          <h3>Dear Parent: ${record.FAMNM},</h3>
+          <h3>Dear Parent: ${record.famnm},</h3>
           <br/>
           <h3>Welcome to our portal,</h3>
           <br/>
