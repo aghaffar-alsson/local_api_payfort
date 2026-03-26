@@ -786,7 +786,7 @@ function generateVerificationToken() {
 // API to validate credentials, generate OTP, store it in DB, and send it by email
 app.post("/loginchk", async (req, res) => {
   const { yr, emll, pswd, mobno } = req.body;
-
+  console.log("Login attempt:", { yr, emll, mobno });
   if (!yr || !emll || !pswd || !mobno) {
     return res.status(400).json({
       success: false,
@@ -806,6 +806,7 @@ app.post("/loginchk", async (req, res) => {
       .input("phone_reg", sql.NVarChar(20), mobno)
       .execute("chkLoginByPswd");
     const record = result.recordset?.[0];
+    console.log("Credential check result:", record);
     if (!record || !record.famid || !record.famnm) {
       return res.status(401).json({
         success: false,
@@ -816,9 +817,13 @@ app.post("/loginchk", async (req, res) => {
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     // 3) Generate verification token
     const verificationToken = crypto.randomUUID();
+    console.log("Generated OTP:", otpCode);
+    console.log("Generated verification token:", verificationToken);
     // 4) Expiry = 5 minutes
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-    const otpHash = await bcrypt.hash(otpCode, 10);    
+    console.log("OTP expires at:", expiresAt);
+    const otpHash = await bcrypt.hash(otpCode, 10);
+    console.log("Hashed OTP:", otpHash);    
     console.log("OTP plain:", otpCode);
     console.log("OTP hash:", otpHash);    
     // 5) Invalidate previous unused OTPs for same user (optional but recommended)
@@ -849,7 +854,9 @@ app.post("/loginchk", async (req, res) => {
       `);
     // 7) Send OTP email
     // 7) Send email
-    await sendEmail({
+    console.log("Sending OTP email to:", record.EMAIL_ADDRESS);
+    console.log("Family Name:", record.FAMNM);
+     sendEmail({
       to: record.EMAIL_ADDRESS,
       subject: "Your Login Verification Code",
       html: `
@@ -888,7 +895,6 @@ app.post("/loginchk", async (req, res) => {
     });
   }
 });
-
 // API to resend OTP code if expired or attempts exceeded
 app.post("/resend-login-code", async (req, res) => {
   const { verificationToken } = req.body;
