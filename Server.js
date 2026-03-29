@@ -24,7 +24,7 @@ import rateLimit from "express-rate-limit";
 //import { getTransporter } from "./mailer.js"; // the above transporter file
 //******************OPEN CONNECTION & ESTABLISH SERVER************************/
 //const express = require("express");
-const cors = require("cors");
+//const cors = require("cors");
 const app = express();
 
 const require = createRequire(import.meta.url);
