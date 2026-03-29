@@ -9,12 +9,18 @@ import sql from 'mssql'
 import path from 'path'
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { log } from 'console';
+//import { log } from 'console';
 import { createRequire } from 'module';
 import bcrypt from "bcrypt";
 import fs from "fs-extra";
 import PDFDocument from "pdfkit";
 import crypto from "crypto";
+//import session from "express-session";
+//import MSSQLStore from "connect-mssql-v2";
+//const MSSQLStore = require('connect-mssql-v2')(session)
+import helmet from  "helmet";
+import rateLimit from "express-rate-limit";
+
 //import { getTransporter } from "./mailer.js"; // the above transporter file
 //******************OPEN CONNECTION & ESTABLISH SERVER************************/
 const require = createRequire(import.meta.url);
@@ -24,13 +30,50 @@ const { google } = require('googleapis');
 // dotenv.config({ path: './.env' });
 dotenv.config();
 const app = express();
+//const isProduction = process.env.NODE_ENV === "production";
+// Trust proxy for secure cookies if behind a reverse proxy (e.g., Vercel)
+app.set("trust proxy", 1);
 
+//paths setup for static files
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const port = process.env.VITE_PORT || 3000;
+//server connection configuration
+const sqlConfig = {
+  server: process.env.VITE_SERVER_NAME,
+  database: process.env.VITE_DB_NAME,
+  user: process.env.VITE_USER_ID,
+  password: process.env.VITE_PSWD,
+  options: {
+    encrypt: false,
+    trustServerCertificate: true,
+  },
+  requestTimeout: 25000,
+};
+console.log(sqlConfig)
 
-app.use(cors());
+//app.use(cors());
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",  
+  process.env.FRONTEND_URL
+];
+// --- Security helmet middleware
+app.use(helmet());
+
+//CORS configuration to allow only our frontend origin and credentials (cookies) to be sent
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true); // allow Postman/server-to-server
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true
+}));
+// --- Body parser
 app.use(express.json());
 app.use("/receipts", express.static(path.join(process.cwd(), "public", "receipts")));
 
@@ -63,18 +106,6 @@ app.use("/receipts", express.static(path.join(process.cwd(), "public", "receipts
 //   },
 //   requestTimeout: 15000,
 // };
-const sqlConfig = {
-  server: process.env.VITE_SERVER_NAME,
-  database: process.env.VITE_DB_NAME,
-  user: process.env.VITE_USER_ID,
-  password: process.env.VITE_PSWD,
-  options: {
-    encrypt: false,
-    trustServerCertificate: true,
-  },
-  requestTimeout: 25000,
-};
-console.log(sqlConfig)
 
 // SQL Config
 // const sqlConfig = {
@@ -94,6 +125,30 @@ console.log(sqlConfig)
 //console.log(process.env.SECRET_TOKEN)
 //console.log(process.env.REFRESH_TOKEN)
 //console.log(process.env.SMTP_USER)
+// Create one shared connection pool
+let poolPromise = sql.connect(sqlConfig)
+  .then(pool => {
+    console.log("✅ Connected to SQL Server");
+    return pool;
+  })
+  .catch(err => {
+    console.error("❌ Database Connection Failed!", err);
+  });
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many attempts. Please try again later."
+  }
+});
+app.use("/loginchk", authLimiter);
+app.use("/verify-login-otp", authLimiter);
+app.use("/resend-login-code", authLimiter);
+
 const oAuth2Client = new google.auth.OAuth2(
   process.env.CLIENT_ID,
   process.env.SECRET_TOKEN,
@@ -148,6 +203,18 @@ async function sendEmail({ to, subject, html, attachments = [] }) {
   });
 }
 
+// --- Utility function to normalize database records with flexible field names
+function normalizeRecord(record, fallback = {}) {
+if (!record) return null;
+
+return {
+  famid: record.FAMID ?? record.famid ?? fallback.famid ?? null,
+  famnm: record.FAMNM ?? record.famnm ?? fallback.famnm ?? null,
+  email: record.EMAIL_ADDRESS ?? record.email_address ?? fallback.email ?? null,
+  mobile: record.MOBILE_NUMBER ?? record.mobile_number ?? fallback.mobile ?? null
+};
+}
+
 // SQL Config
 // const sqlConfig = {
 //   server: "41.128.168.249",
@@ -160,18 +227,45 @@ async function sendEmail({ to, subject, html, attachments = [] }) {
 //   },
 //   requestTimeout: 90000,
 // };
-// ✅ Create one shared connection pool
-let poolPromise = sql.connect(sqlConfig)
-  .then(pool => {
-    console.log("✅ Connected to SQL Server");
-    return pool;
-  })
-  .catch(err => {
-    console.error("❌ Database Connection Failed!", err);
-  });
+// // ✅ Create one shared connection pool
+// let poolPromise = sql.connect(sqlConfig)
+//   .then(pool => {
+//     console.log("✅ Connected to SQL Server");
+//     return pool;
+//   })
+//   .catch(err => {
+//     console.error("❌ Database Connection Failed!", err);
+//   });
 // // --- Start Server
 // app.listen(port, () => {
 //   console.log(`🚀 Server is running on port ${process.env.VITE_PORT}`);
+// });
+// // --- Middleware to protect routes
+// function requireAuth(req, res, next) {
+//   if (!req.session || !req.session.user || !req.session.user.authenticated) {
+//     return res.status(401).json({
+//       success: false,
+//       message: "Unauthorized"
+//     });
+//   }
+//   next();
+// }
+// // Optional: simple async wrapper
+function asyncHandler(fn) {
+  return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+}
+// // --- Health Check Endpoint
+// app.get("/health", (req, res) => {
+//   res.json({
+//     success: true,
+//     message: "API is running",
+//     env: process.env.NODE_ENV || "development",
+//     session: !!req.session,
+//     user: req.session?.user ? {
+//       famid: req.session.user.famid,
+//       famnm: req.session.user.famnm
+//     } : null
+//   });
 // });
 
 // --- Test API
@@ -761,6 +855,7 @@ app.post('/sp_GetFmInfo', async (req, res) => {
   }
 });
 
+
 // --- Bank Details Stored Procedure
 app.get("/bankdet/:bnkId", async (req, res) => {
   const bnkId = parseInt(req.params.bnkId, 10);
@@ -896,61 +991,71 @@ app.post("/loginchk", async (req, res) => {
   }
 });
 // API to resend OTP code if expired or attempts exceeded
-app.post("/resend-login-code", async (req, res) => {
+app.post("/resend-login-code", asyncHandler(async (req, res) => {
   const { verificationToken } = req.body;
   if (!verificationToken) {
-    return res.status(400).json({ success: false, message: "Missing verification token" });
+    return res.status(400).json({
+    success: false,
+    message: "Missing verification token"
+  });
   }
 
   try {
     const pool = await sql.connect(sqlConfig);
 
     // 1) Load existing OTP request
-    const result = await pool.request()
-      .input("verificationToken", sql.NVarChar(100), String(verificationToken).trim())
-      .query(`SELECT TOP 1 OTP_ID, FAMID, FAMNM, EMAIL_ADDRESS, MOBILE_NUMBER, EXPIRES_AT, IS_USED, ATTEMPTS 
-              FROM LOGIN_OTP_VERIFICATIONS WHERE VERIFICATION_TOKEN = @verificationToken`);
-
+    const result = await pool
+    .request()
+    .input("verificationToken", sql.NVarChar(100), String(verificationToken).trim())
+    .query(`SELECT TOP 1 OTP_ID,FAMID,FAMNM,EMAIL_ADDRESS,MOBILE_NUMBER,EXPIRES_AT,IS_USED,ATTEMPTS ,  
+        case is_used when 1 then 'True' else 'False' end as ussdd
+        FROM LOGIN_OTP_VERIFICATIONS WHERE VERIFICATION_TOKEN = @verificationToken
+    `);
     const record = result.recordset?.[0];
     if (!record) {
-      return res.status(400).json({ success: false, message: "Invalid verification request" });
+    return res.status(400).json({
+        success: false,
+        message: "Invalid verification request"
+    });
     }
 
-    // 2) Check if resend allowed
+    // 2) Decide if resend is allowed
     const isExpired = new Date() > new Date(record.EXPIRES_AT);
     const attemptsExceeded = record.ATTEMPTS >= 3;
     if (!isExpired && !attemptsExceeded) {
-      return res.status(400).json({
+    return res.status(400).json({
         success: false,
         message: "You can request a new code only after expiry or after exceeding maximum attempts"
-      });
+    });
     }
-
     // 3) Mark old OTP as used
-    await pool.request()
-      .input("otpId", sql.Int, record.OTP_ID)
-      .query(`UPDATE LOGIN_OTP_VERIFICATIONS SET IS_USED = 1, USED_AT = GETDATE() WHERE OTP_ID = @otpId`);
-
+    await pool
+    .request()
+    .input("otpId", sql.Int, record.OTP_ID)
+    .query(`UPDATE LOGIN_OTP_VERIFICATIONS SET IS_USED = 1,USED_AT = GETDATE() WHERE OTP_ID = @otpId`);
     // 4) Generate new OTP
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const otpHash = await bcrypt.hash(otpCode, 10);
+    console.log("OTP plain:", otpCode);
+    console.log("OTP hash:", otpHash);    
 
     // 5) New token + expiry
     const newVerificationToken = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
     // 6) Insert new OTP record
-    await pool.request()
-      .input("verificationToken", sql.NVarChar(100), newVerificationToken)
-      .input("famid", sql.Int, record.FAMID)
-      .input("famnm", sql.NVarChar(255), record.FAMNM)
-      .input("emll", sql.NVarChar(255), record.EMAIL_ADDRESS)
-      .input("mobno", sql.NVarChar(20), record.MOBILE_NUMBER)
-      .input("otpCode", sql.NVarChar(255), otpHash)
-      .input("expiresAt", sql.DateTime, expiresAt)
-      .query(`INSERT INTO LOGIN_OTP_VERIFICATIONS 
-              (VERIFICATION_TOKEN,FAMID,FAMNM,EMAIL_ADDRESS,MOBILE_NUMBER,OTP_CODE,EXPIRES_AT,IS_USED,ATTEMPTS,CREATED_AT)
-              VALUES (@verificationToken,@famid,@famnm,@emll,@mobno,@otpCode,@expiresAt,0,0,GETDATE())`);
+    await pool
+    .request()
+    .input("verificationToken", sql.NVarChar(100), newVerificationToken)
+    .input("famid", sql.Int, record.FAMID || record.famid)
+    .input("famnm", sql.NVarChar(255), record.FAMNM || record.famnm)
+    .input("emll", sql.NVarChar(255), record.EMAIL_ADDRESS || record.email_address)
+    .input("mobno", sql.NVarChar(20), record.MOBILE_NUMBER || record.mobile_number)
+    .input("otpCode", sql.NVarChar(255), otpHash)
+    .input("expiresAt", sql.DateTime, expiresAt)
+    .query(`INSERT INTO LOGIN_OTP_VERIFICATIONS (VERIFICATION_TOKEN,FAMID,FAMNM,EMAIL_ADDRESS,MOBILE_NUMBER,OTP_CODE,
+        EXPIRES_AT,IS_USED,ATTEMPTS,CREATED_AT) VALUES
+        (@verificationToken,@famid,@famnm,@emll,@mobno,@otpCode,@expiresAt,0,0,GETDATE())
+    `);
 
     // 7) Send email
     await sendEmail({
@@ -970,44 +1075,49 @@ app.post("/resend-login-code", async (req, res) => {
         </font>`,
     });
 
-    return res.json({
-      success: true,
-      message: "A new verification code has been sent to your email",
-      verificationToken: newVerificationToken,
-      otpRequired: true,
-      expiresAt: expiresAt.toISOString(),
-      maxAttempts: 3
-    });
+  return res.json({
+    success: true,
+    message: "A new verification code has been sent to your email",
+    verificationToken: newVerificationToken,
+    otpRequired: true,
+    expiresAt: expiresAt.toISOString(),
+    maxAttempts: 3
+  });
 
   } catch (err) {
-    console.error("resend-login-code error:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-      error: err.message
-    });
+  console.error("resend-login-code error:", err);
+  return res.status(500).json({
+  success: false,
+  message: "Server error",
+  error: err.message
+  });
   }
-});
+}));
 
 //API to verify the OTP code sent to email, then create session/JWT if valid
-app.post("/verify-login-code", async (req, res) => {
+app.post("/verify-login-code", asyncHandler(async (req, res) => {
   const { verificationToken, code } = req.body;
+  console.log("Verification request received:", { verificationToken, code });
   if (!verificationToken || !code) {
     return res.status(400).json({
       success: false,
       message: "Missing verification token or code"
     });
   }
+  //verificationToken = String(verificationToken).trim();
+  console.log("Received verification request:", { verificationToken, code });
   try {
     const pool = await sql.connect(sqlConfig);
+
     const result = await pool
       .request()
       .input("verificationToken", sql.NVarChar(100), String(verificationToken).trim())
-      .query(`
-        SELECT TOP 1 OTP_ID,FAMID,FAMNM,EMAIL_ADDRESS,MOBILE_NUMBER,OTP_CODE,EXPIRES_AT,IS_USED, ATTEMPTS 
-        FROM LOGIN_OTP_VERIFICATIONS WHERE VERIFICATION_TOKEN = @verificationToken
-      `);
+      .query(`SELECT TOP 1 OTP_ID,FAMID,FAMNM,EMAIL_ADDRESS,MOBILE_NUMBER,OTP_CODE,EXPIRES_AT,IS_USED,ATTEMPTS ,  
+        case is_used when 1 then 'True' else 'False' end as ussdd 
+        FROM LOGIN_OTP_VERIFICATIONS WHERE VERIFICATION_TOKEN = @verificationToken`);
+
     const record = result.recordset?.[0];
+    console.log("DB record for verification:", record);
     if (!record) {
       return res.status(400).json({
         success: false,
@@ -1015,7 +1125,10 @@ app.post("/verify-login-code", async (req, res) => {
         reason: "INVALID_REQUEST"
       });
     }
-    if (record.IS_USED) {
+    console.log(record.IS_USED)
+    console.log(record.ussdd)
+    //if (record.IS_USED) {
+    if (record.ussdd === 'True') {
       return res.status(400).json({
         success: false,
         message: "This verification code is no longer valid",
@@ -1023,11 +1136,12 @@ app.post("/verify-login-code", async (req, res) => {
         allowResend: true
       });
     }
+
     if (new Date() > new Date(record.EXPIRES_AT)) {
       await pool
         .request()
         .input("otpId", sql.Int, record.OTP_ID)
-        .query(`UPDATE LOGIN_OTP_VERIFICATIONS SET IS_USED = 1,USED_AT = GETDATE() WHERE OTP_ID = @otpId`);
+        .query(`UPDATE LOGIN_OTP_VERIFICATIONS SET IS_USED = 1, USED_AT = GETDATE() WHERE OTP_ID = @otpId`);
 
       return res.status(400).json({
         success: false,
@@ -1037,11 +1151,12 @@ app.post("/verify-login-code", async (req, res) => {
       });
     }
 
-    if (record.ATTEMPTS >= 3) {
+    if ((record.ATTEMPTS || 0) >= 3) {
       await pool
         .request()
         .input("otpId", sql.Int, record.OTP_ID)
-        .query(`UPDATE LOGIN_OTP_VERIFICATIONS SET IS_USED = 1,USED_AT = GETDATE() WHERE OTP_ID = @otpId`);
+        .query(`
+          UPDATE LOGIN_OTP_VERIFICATIONS SET IS_USED = 1, USED_AT = GETDATE() WHERE OTP_ID = @otpId`);
 
       return res.status(429).json({
         success: false,
@@ -1050,71 +1165,110 @@ app.post("/verify-login-code", async (req, res) => {
         allowResend: true
       });
     }
+    console.log("Comparing OTP code:", { inputCode: String(code).trim(), dbHash: String(record.OTP_CODE).trim() });
     const isMatch = await bcrypt.compare(String(code).trim(),String(record.OTP_CODE).trim());
-
     if (!isMatch) {
-      // increment + auto-lock on 3rd bad try
       await pool
         .request()
         .input("otpId", sql.Int, record.OTP_ID)
-        .query(`
-          UPDATE LOGIN_OTP_VERIFICATIONS SET ATTEMPTS = ATTEMPTS + 1,
+        .query(`UPDATE LOGIN_OTP_VERIFICATIONS SET ATTEMPTS = ATTEMPTS + 1,
           IS_USED = CASE WHEN ATTEMPTS + 1 >= 3 THEN 1 ELSE IS_USED END,
-          USED_AT = CASE WHEN ATTEMPTS + 1 >= 3 THEN GETDATE() ELSE USED_AT END
-          WHERE OTP_ID = @otpId
+          USED_AT = CASE WHEN ATTEMPTS + 1 >= 3 THEN GETDATE() ELSE USED_AT END WHERE OTP_ID = @otpId
         `);
 
-        const nextAttempts = (record.ATTEMPTS || 0) + 1;
-        const lockedNow = nextAttempts >= 3;
+      const nextAttempts = (record.ATTEMPTS || 0) + 1;
+      const lockedNow = nextAttempts >= 3;
 
-        return res.status(401).json({
-          success: false,
-          message: lockedNow
-            ? "Number of attempts exceeded. Please request a new verification code."
-            : "Invalid verification code, please try again",
-          reason: lockedNow ? "ATTEMPTS_EXCEEDED" : "INVALID_CODE",
-          allowResend: lockedNow,
-          attemptsLeft: Math.max(0, 3 - nextAttempts)
-        });
-      // const nextAttempts = (record.ATTEMPTS || 0) + 1;
-      // const lockedNow = nextAttempts >= 3;
-
-      // return res.status(401).json({
-      //   success: false,
-      //   message: lockedNow
-      //     ? "Number of attempts exceeded. Please request a new verification code."
-      //     : "Invalid verification code, please try again",
-      //   reason: lockedNow ? "ATTEMPTS_EXCEEDED" : "INVALID_CODE",
-      //   allowResend: lockedNow,
-      //   attemptsLeft: Math.max(0, 3 - nextAttempts)
-      // });
+      return res.status(401).json({
+        success: false,
+        message: lockedNow
+          ? "Number of attempts exceeded. Please request a new verification code."
+          : "Invalid verification code, please try again",
+        reason: lockedNow ? "ATTEMPTS_EXCEEDED" : "INVALID_CODE",
+        allowResend: lockedNow,
+        attemptsLeft: Math.max(0, 3 - nextAttempts)
+      });
     }
 
-    // successful verification -> create session (replace with your real token/session logic)
+    // Successful verification -> mark OTP as used
     await pool
       .request()
       .input("otpId", sql.Int, record.OTP_ID)
-      .query(`UPDATE LOGIN_OTP_VERIFICATIONS SET IS_USED = 1,USED_AT = GETDATE() WHERE OTP_ID = @otpId`);
+      .query(`
+        UPDATE LOGIN_OTP_VERIFICATIONS
+        SET IS_USED = 1, USED_AT = GETDATE()
+        WHERE OTP_ID = @otpId
+      `);
 
-    return res.json({
+    // Regenerate session to prevent session fixation
+    // req.session.regenerate((regenErr) => {
+    //   if (regenErr) {
+    //     console.error("Session regenerate error:", regenErr);
+    //     return res.status(500).json({
+    //       success: false,
+    //       message: "Unable to create session"
+    //     });
+    //   }
+
+      // // Set session data INSIDE regenerate callback
+      // req.session.isAuthenticated = true;
+      // req.session.user = {
+      //   famid: record.FAMID,
+      //   famnm: record.FAMNM,
+      //   email: record.EMAIL_ADDRESS,
+      //   mobile: record.MOBILE_NUMBER,
+      //   authenticated: true,
+      //   loginAt: new Date().toISOString()
+      // };
+ 
+    //   // Save session before responding
+    //   req.session.save((saveErr) => {
+    //     if (saveErr) {
+    //       console.error("Session save error:", saveErr);
+    //       return res.status(500).json({
+    //         success: false,
+    //         message: "Failed to save session"
+    //       });
+    //     }
+
+    //     return res.status(200).json({
+    //       success: true,
+    //       message: "Login successful",
+    //       user: {
+    //         famid: record.FAMID,
+    //         famnm: record.FAMNM,
+    //         emll: record.EMAIL_ADDRESS,
+    //         mobno: record.MOBILE_NUMBER
+    //       }
+    //     });
+    //   });
+    // });
+    return res.status(200).json({
       success: true,
-      message: "Login successful",
-      user: {
+      message: "Login successful (session bypass test)",
+      user: //req.session.user
+      {
         famid: record.FAMID,
         famnm: record.FAMNM,
         emll: record.EMAIL_ADDRESS,
         mobno: record.MOBILE_NUMBER
       }
     });
-
+  //  return res.json({
+  //     success: true,
+  //     message: "Login verified successfully",
+  //     user: req.session.user
+  //   });    
   } catch (err) {
     console.error("verify-login-code error:", err);
+    console.error("verify-login-code stack:", err?.stack);
+    console.error("Request body:", req.body);    
     return res.status(500).json({
       success: false,
       message: "Server error"
     });
   }
-});
+}));
 
 // --- Banks API
 app.get("/banks", async (req, res) => {
@@ -1133,13 +1287,13 @@ app.get("/banks", async (req, res) => {
 //GET WHOLE FFES SITUATION FOR THE SELECTED STUDENT
 app.post('/getstfees', async (req, res) => {
   const { famid, curstid, onlyRem } = req.body;
-
-  if (!famid || !curstid || !onlyRem) {
+  console.log(req.body);
+  if (!famid || !curstid ) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
   try {
-    const pool = await poolPromise;
+    const pool = await sql.connect(sqlConfig);
     const result = await pool
       .request()
       .input('famid', sql.Int, famid)
@@ -1147,6 +1301,7 @@ app.post('/getstfees', async (req, res) => {
       .input('onlyRem', sql.Int, onlyRem)
       .execute('sp_GetStFees');
       const records = result.recordset;      
+      console.log("records:", records);
       if (records && records.length > 0) {
         res.json(records); // ✅ sends array
       } else {
@@ -1407,10 +1562,6 @@ app.post("/generate-receipt", async (req, res) => {
     });
   }
 });
-
-
-
-
 // Main endpoint to send email
 app.post("/send-receipt-email", async (req, res) => {
   try {
@@ -1671,7 +1822,11 @@ app.get("/hello", (req, res) => {
 // --- Start Server
 
 const PORT = process.env.VITE_PORT || 3000;
-
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+  console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+  console.log(`Allowed origins:`, allowedOrigins);
+});
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
