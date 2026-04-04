@@ -1003,7 +1003,7 @@ app.post("/loginchk", async (req, res) => {
       to: record.eml,
       subject: "Your Login Verification Code",
       html: `
-        <font face="Calibri" size="3" color="blue">
+        <font face="Calibri" size="3" color="black">
           <h3>Dear Parent: ${record.famnm},</h3>
           <br/>
           <h3>Welcome to our portal,</h3>
@@ -1012,6 +1012,8 @@ app.post("/loginchk", async (req, res) => {
           <h2 style="letter-spacing: 4px;">${otpCode}</h2>
           <br/>
           <p>This OTP code will expire in 5 minutes.</p>
+          <br/>
+          <p>Please do not share this code with anyone.</p>
           <br/>
           <p>Maximum 3 attempts allowed.</p>
           <br/>
@@ -1110,16 +1112,23 @@ app.post("/resend-login-code", asyncHandler(async (req, res) => {
       to: record.EMAIL_ADDRESS,
       subject: "Your New Login Verification Code",
       html: `
-        <font face="Calibri" size="3" color="blue">
-          <h3>Dear Parent: ${record.FAMNM},</h3>
+        <font face="Calibri" size="3" color="black">
+          <h3>Dear Parent: ${record.famnm},</h3>
+          <br/>
+          <h3>Welcome to our portal,</h3>
           <br/>
           <p>Your verification OTP code is:</p>
           <h2 style="letter-spacing: 4px;">${otpCode}</h2>
           <br/>
           <p>This OTP code will expire in 5 minutes.</p>
+          <br/>
+          <p>Please do not share this code with anyone.</p>
+          <br/>
           <p>Maximum 3 attempts allowed.</p>
+          <br/>
           <p>Finance Department - Fees Section</p>
           <p>El Alsson School</p>
+          <p>Best regards,</p>
         </font>`,
     });
 
