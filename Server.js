@@ -1113,7 +1113,7 @@ app.post("/resend-login-code", asyncHandler(async (req, res) => {
       subject: "Your New Login Verification Code",
       html: `
         <font face="Calibri" size="3" color="black">
-          <h3>Dear Parent: ${record.famnm},</h3>
+          <h3>Dear Parent: ${record.famnm} || ${record.FAMNM} ,</h3>
           <br/>
           <h3>Welcome to our portal,</h3>
           <br/>
