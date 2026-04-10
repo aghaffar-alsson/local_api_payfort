@@ -62,6 +62,7 @@ console.log(sqlConfig)
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
+  "https://fees.family.alsson.app",
   process.env.FRONTEND_URL,
   // process.env.SEC_FRONTEND_URL,
 ];
