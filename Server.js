@@ -519,6 +519,7 @@ app.post('/signup', async (req, res) => {
         <p>Finance Department - Fees Section</p>
         <p>El Alsson School- </p>
         <p>Best regards,</p>
+        <img src="https://www.alsson.com/wp-content/themes/alsson/img/newgiza-logo.jpg" alt="Alsson Logo" width="150"/>
       `,
     });
 
@@ -628,6 +629,7 @@ app.post('/modifylogin', async (req, res) => {
           <p>Finance Department - Fees Section</p>
           <p>El Alsson School- </p>
           <p>Best regards,</p>
+          <img src="https://www.alsson.com/wp-content/themes/alsson/img/newgiza-logo.jpg" alt="Alsson Logo" width="150"/>
         `,
     };
     //await transporter.sendMail(mailOptions);
@@ -656,6 +658,7 @@ app.post('/modifylogin', async (req, res) => {
           <p>Finance Department - Fees Section</p>
           <p>El Alsson School- </p>
           <p>Best regards,</p>
+          <img src="https://www.alsson.com/wp-content/themes/alsson/img/newgiza-logo.jpg" alt="Alsson Logo" width="150"/>
         `
     });
 
@@ -1021,6 +1024,7 @@ app.post("/loginchk", async (req, res) => {
           <p>Finance Department - Fees Section</p>
           <p>El Alsson School</p>
           <p>Best regards,</p>
+          <img src="https://www.alsson.com/wp-content/themes/alsson/img/newgiza-logo.jpg" alt="Alsson Logo" width="150"/>
         </font>`,
     });
 
@@ -1130,6 +1134,7 @@ app.post("/resend-login-code", asyncHandler(async (req, res) => {
           <p>Finance Department - Fees Section</p>
           <p>El Alsson School</p>
           <p>Best regards,</p>
+          <img src="https://www.alsson.com/wp-content/themes/alsson/img/newgiza-logo.jpg" alt="Alsson Logo" width="150"/>
         </font>`,
     });
 
