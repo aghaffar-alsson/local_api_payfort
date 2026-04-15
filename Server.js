@@ -517,9 +517,10 @@ app.post('/signup', async (req, res) => {
         <p>You should change it by your own password immediately.</p>
         <br/>
         <p>Finance Department - Fees Section</p>
-        <p>El Alsson School- </p>
+        <p>El Alsson School</p>
         <p>Best regards,</p>
         <img src="https://www.alsson.com/wp-content/themes/alsson/img/newgiza-logo.jpg" alt="Alsson Logo" width="150"/>
+        </font>
       `,
     });
 
@@ -627,9 +628,10 @@ app.post('/modifylogin', async (req, res) => {
           <p>You should change it by your own password immediately.</p>
           <br/>
           <p>Finance Department - Fees Section</p>
-          <p>El Alsson School- </p>
+          <p>El Alsson School</p>
           <p>Best regards,</p>
           <img src="https://www.alsson.com/wp-content/themes/alsson/img/newgiza-logo.jpg" alt="Alsson Logo" width="150"/>
+          </font>
         `,
     };
     //await transporter.sendMail(mailOptions);
@@ -656,9 +658,10 @@ app.post('/modifylogin', async (req, res) => {
           <p>You should change it by your own password immediately.</p>
           <br/>
           <p>Finance Department - Fees Section</p>
-          <p>El Alsson School- </p>
+          <p>El Alsson School</p>
           <p>Best regards,</p>
           <img src="https://www.alsson.com/wp-content/themes/alsson/img/newgiza-logo.jpg" alt="Alsson Logo" width="150"/>
+          </font>
         `
     });
 
