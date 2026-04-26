@@ -2174,7 +2174,6 @@ app.post("/log-bankform-print", async (req, res) => {
           SYSDATETIME()
         )
       `);
-
     // ---------- SEND EMAIL ----------
     // 4️⃣ Send email using Gmail API (NOT SMTP)
     await sendEmail({
@@ -2183,19 +2182,12 @@ app.post("/log-bankform-print", async (req, res) => {
       html: `
         <font face="Calibri" size="3" color = "blue">
         <h3>Academic Year: ${academicYear}</h3>
-        <br/>
         <h3>Family Name: ${familyName}</h3>
-        <br/>
         <h3>Student ID: ${studentId}</h3>
-        <br/>
         <h3>Student Name: ${studentName}</h3>
-        <br/>
         <h3>Installment: ${installmentName}</h3>
-        <br/>
         <h3>Amount: ${amount} EGP</h3>
-        <br/>
         <h3>Bank: ${bankName}</h3>
-        <br/>
         <h3>${new Date().toLocaleString()}</h3>
         <br/>
         <p>Finance Department - Fees Section</p>
