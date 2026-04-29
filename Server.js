@@ -1611,9 +1611,24 @@ app.post("/verify-login-code", asyncHandler(async (req, res) => {
     //     });
     //   });
     // });
+
+    // Generate a unique session ID (in real implementation, this would be handled by session middleware)
+    console.log("Before:", sessions);
+    const sessionId = uuidv4();
+    // Store session data in memory (replace with real session store in production)
+    sessions[sessionId] = {
+      famid: record.FAMID,
+      famnm: record.FAMNM,
+      emll: record.EMAIL_ADDRESS,
+      mobno: record.MOBILE_NUMBER,
+      lastActivity: Date.now()
+    };    
+    console.log("After:", sessions);
+
     return res.status(200).json({
       success: true,
       message: "Login successful (session bypass test)",
+      sessionId,   // returning session ID for testing purposes
       user: //req.session.user
       {
         famid: record.FAMID,
@@ -1637,7 +1652,6 @@ app.post("/verify-login-code", asyncHandler(async (req, res) => {
     });
   }
 }));
-
 // --- Banks API
 app.get("/banks", sessionMiddleware, async (req, res) => {
   try {
