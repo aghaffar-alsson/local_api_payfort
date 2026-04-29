@@ -947,18 +947,19 @@ app.post('/chkLoginByPswd', async (req, res) => {
 
 //GET THE PERSONAL INFO FOR THE SELECTED FAMILY
 app.post('/sp_GetFmInfo', sessionMiddleware, async (req, res) => {
-  const { yrNo, CurFmNo } = req.body;
-
-  if (!yrNo || !CurFmNo) {
+  const { yrNo, CurFmNo, eml } = req.body;
+  console.log(req.body);
+  if (!yrNo || !CurFmNo || !eml) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
   try {
-    const pool = await poolPromise;
+    const pool = await sql.connect(sqlConfig);
     const result = await pool
       .request()
       .input('yrNo', sql.Char(4), yrNo)
       .input('famid', sql.Int, CurFmNo)
+      .input('eml', sql.NVarChar(255), eml)
       .execute('sp_GetFmInfo');
     const records = result.recordset;
     if (records && records.length > 0) {
